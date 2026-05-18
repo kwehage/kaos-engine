@@ -234,3 +234,60 @@ executable('kaos-engine-pitch-shifter',
     win_subsystem: 'windows',
     install: false,
 )
+
+# ── Modulator standalone ───────────────────────────────────────────────────────
+modulator_standalone_srcs = files([
+    '../effects/modulator/modulator_processor.cpp',
+    '../plugin/modulator_plugin.cpp',
+    '../plugin/modulator_editor.cpp',
+    '../plugin/look_and_feel.cpp',
+    '../../third_party/JUCE/modules/juce_audio_plugin_client/juce_audio_plugin_client_Standalone.cpp',
+])
+
+modulator_standalone_inc = include_directories([
+    '../plugin',
+    '../effects/modulator',
+])
+
+modulator_standalone_defines = [
+    '-DJucePlugin_Build_VST3=0',
+    '-DJucePlugin_Build_VST=0',
+    '-DJucePlugin_Build_AU=0',
+    '-DJucePlugin_Build_AUv3=0',
+    '-DJucePlugin_Build_AAX=0',
+    '-DJucePlugin_Build_Standalone=1',
+    '-DJucePlugin_Build_LV2=0',
+    '-DJucePlugin_Build_Unity=0',
+    '-DJucePlugin_Name="kaos-engine::modulator"',
+    '-DJucePlugin_Manufacturer="kaos-engine"',
+    '-DJucePlugin_ManufacturerWebsite=""',
+    '-DJucePlugin_ManufacturerEmail=""',
+    '-DJucePlugin_ManufacturerCode=0x4e75456e',
+    '-DJucePlugin_PluginCode=0x4e654d64',
+    '-DJucePlugin_IsSynth=0',
+    '-DJucePlugin_WantsMidiInput=0',
+    '-DJucePlugin_ProducesMidiOutput=0',
+    '-DJucePlugin_IsMidiEffect=0',
+    '-DJucePlugin_EditorRequiresKeyboardFocus=0',
+    '-DJucePlugin_Version=0x010000',
+    '-DJucePlugin_VersionString="1.0.0"',
+    '-DJucePlugin_VersionCode=0x010000',
+    '-DJucePlugin_Vst3Category="Fx|Modulation"',
+    '-DJUCE_VST3_CAN_REPLACE_VST2=0',
+    '-DJucePlugin_VSTUniqueID=JucePlugin_PluginCode',
+    '-DJUCE_MODULE_AVAILABLE_juce_audio_utils=1',
+    '-DJUCE_MODULE_AVAILABLE_juce_audio_devices=1',
+]
+
+executable('kaos-engine-modulator',
+    sources: modulator_standalone_srcs,
+    include_directories: [modulator_standalone_inc, juce_include_dirs],
+    cpp_args: build_flags_cpp + build_flags + modulator_standalone_defines + [
+        '-Wno-deprecated-declarations', '-Wno-non-virtual-dtor', '-Wno-sign-compare',
+    ],
+    link_args: standalone_link_flags,
+    link_with: lib_juce,
+    dependencies: system_deps,
+    win_subsystem: 'windows',
+    install: false,
+)
