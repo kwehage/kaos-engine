@@ -1,0 +1,60 @@
+#pragma once
+#include <juce_audio_processors/juce_audio_processors.h>
+#include "distortion_processor.h"
+
+namespace kaos_engine {
+
+class DistortionPlugin final : public juce::AudioProcessor {
+public:
+    DistortionPlugin();
+    ~DistortionPlugin() override = default;
+
+    // ── AudioProcessor ────────────────────────────────────────────────────────
+    void prepareToPlay(double sampleRate, int samplesPerBlock) override;
+    void releaseResources() override;
+    void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    juce::AudioProcessorEditor* createEditor() override;
+    bool hasEditor() const override { return true; }
+
+    const juce::String getName() const override { return "kaos-engine::distortion"; }
+    bool acceptsMidi()  const override { return false; }
+    bool producesMidi() const override { return false; }
+    bool isMidiEffect() const override { return false; }
+    double getTailLengthSeconds() const override { return 0.0; }
+
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram(int) override {}
+    const juce::String getProgramName(int) override { return "Default"; }
+    void changeProgramName(int, const juce::String&) override {}
+
+    void getStateInformation(juce::MemoryBlock& dest) override;
+    void setStateInformation(const void* data, int size) override;
+
+    juce::AudioProcessorValueTreeState& get_apvts() { return apvts_; }
+
+private:
+    juce::AudioProcessorValueTreeState apvts_;
+    DistortionProcessor dsp_;
+
+    std::atomic<float>* p_drive_          = nullptr;
+    std::atomic<float>* p_mode_           = nullptr;
+    std::atomic<float>* p_feedback_       = nullptr;
+    std::atomic<float>* p_tone_           = nullptr;
+    std::atomic<float>* p_bias_           = nullptr;
+    std::atomic<float>* p_output_         = nullptr;
+    std::atomic<float>* p_mix_            = nullptr;
+    std::atomic<float>* p_filter_on_      = nullptr;
+    std::atomic<float>* p_filter_pos_     = nullptr;
+    std::atomic<float>* p_filter_type_    = nullptr;
+    std::atomic<float>* p_filter_cutoff_  = nullptr;
+    std::atomic<float>* p_filter_res_     = nullptr;
+    std::atomic<float>* p_filter_blend_   = nullptr;
+
+    static juce::AudioProcessorValueTreeState::ParameterLayout make_params();
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DistortionPlugin)
+};
+
+} // namespace kaos_engine

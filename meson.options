@@ -1,0 +1,5 @@
+option('build_vst3',
+    type: 'boolean',
+    value: true,
+    description: 'Build VST3 plugin'
+)

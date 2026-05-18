@@ -1,0 +1,6 @@
+subdir('effects/distortion')
+subdir('effects/delay')
+subdir('effects/reverb')
+subdir('effects/pitch_shifter')
+subdir('plugin')
+subdir('standalone')
