@@ -100,6 +100,8 @@ PitchShifterEditor::PitchShifterEditor(PitchShifterPlugin& plugin)
         gain_knob_[vi].setTooltip(
             "Gain (g): voice output level (0 = silent, 1 = unity). "
             "Voices with gain = 0 are skipped entirely -- zero CPU cost. "
+            "The wet signal is normalised by total active gain, so enabling additional "
+            "voices does not raise the overall output level. "
             + String(vi == 0 ? "Default 1.0." : "Default 0.0 -- raise to enable this voice."));
         pitch_knob_[vi].setTooltip(
             "Pitch (p): semitone shift for this voice (-24 to +24, integer steps). "
@@ -123,7 +125,7 @@ PitchShifterEditor::PitchShifterEditor(PitchShifterPlugin& plugin)
         "0 = fully dry, 1 = fully wet.");
     output_knob_.setTooltip(
         "Output: post-mix gain (-20 to +6 dB). "
-        "Compensate if multiple active voices raise the overall level.");
+        "Trim the final level after mix.");
 
     update_algo_ui();
 }
@@ -285,7 +287,7 @@ void PitchShifterEditor::update_algo_ui()
             "  [each grain period] c = random * chaos_range  new chaos offset\n"
             "  da = pf*(gs-pa) + c + 1 ;  db = pf*(gs-pb) + c + 1   read delays\n"
             "  v = ea*buf[n-da] + eb*buf[n-db]             triangular-windowed output\n"
-            "  wet = g*v summed over active voices\n"
+            "  wet = (sum of g*v) / (sum of g)             normalised across active voices\n"
             "\n"
             "Knob symbols:  p=PITCH  d=DETUNE  g=GAIN  m1=MOD 1  m2=MOD 2  w=MIX",
             "Mod 1 (m1): grain size for this voice.\n"

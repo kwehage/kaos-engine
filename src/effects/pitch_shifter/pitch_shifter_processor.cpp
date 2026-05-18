@@ -296,7 +296,7 @@ void PitchShifterProcessor::process(float* left, float* right, int num_samples)
         write_l_.write(in_l);
         write_r_.write(in_r);
 
-        float sum_l = 0.0f, sum_r = 0.0f;
+        float sum_l = 0.0f, sum_r = 0.0f, total_gain = 0.0f;
         for (int vi = 0; vi < kNumVoices; ++vi) {
             if (voice_gains_[vi] < 0.001f) continue;
             float vl = 0.0f, vr = 0.0f;
@@ -306,8 +306,15 @@ void PitchShifterProcessor::process(float* left, float* right, int num_samples)
                 case PitchShifterAlgorithm::Tape:     process_tape    (vi, vl, vr); break;
                 default: break;
             }
-            sum_l += voice_gains_[vi] * vl;
-            sum_r += voice_gains_[vi] * vr;
+            sum_l       += voice_gains_[vi] * vl;
+            sum_r       += voice_gains_[vi] * vr;
+            total_gain  += voice_gains_[vi];
+        }
+
+        // Normalise by total active gain so adding voices doesn't change overall level.
+        if (total_gain > 0.0f) {
+            sum_l /= total_gain;
+            sum_r /= total_gain;
         }
 
         left[i]  = (in_l + mix_ * (sum_l - in_l)) * output_linear_;

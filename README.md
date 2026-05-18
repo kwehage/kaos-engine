@@ -197,8 +197,8 @@ editable text boxes at the bottom of the UI.
 
 **Default voice configuration:** Voice 1 is active at unity gain (GAIN = 1.0), Voices 2
 and 3 are silent (GAIN = 0.0). Raise their GAIN to add additional harmony or detuning
-layers. The three voices accumulate additively — use the Output knob to compensate if
-level increases when enabling more voices.
+layers. The wet signal is normalised by total active gain, so enabling additional voices
+does not increase the overall output level.
 
 ---
 
