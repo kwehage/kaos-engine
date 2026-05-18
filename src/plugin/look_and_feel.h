@@ -32,16 +32,6 @@ struct ColourPalette {
                                   juce::uint32 dark_colour = 0xff141414);
 };
 
-// ── Per-plugin accent colour constants ─────────────────────────────────────────
-namespace accent {
-    static constexpr juce::uint32 kDistortion = 0xffd4cfc6; // warm off-white
-    static constexpr juce::uint32 kDelay      = 0xff6ca8c8; // steel blue
-    static constexpr juce::uint32 kEq         = 0xff6cb88a; // sage green
-    static constexpr juce::uint32 kReverb     = 0xff9c7cc8; // soft violet
-    static constexpr juce::uint32 kLooper     = 0xffc87c7c; // muted rose
-    static constexpr juce::uint32 kPatcher    = 0xff6cc8b8; // teal
-}
-
 // ── Look and feel ──────────────────────────────────────────────────────────────
 class NullEngineLookAndFeel final : public juce::LookAndFeel_V4 {
 public:
