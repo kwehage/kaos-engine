@@ -4,9 +4,6 @@ A collection of VST3 audio effects plugins for algorithmic sound design. Each pl
 built around a focused set of controls, a minimal UI, and a selection of algorithms
 covering a wide range of sonic character.
 
-All plugins share the same dark visual palette (background `#141414`, cadmium red `#D22B2B`
-accent) and follow consistent parameter naming conventions across the suite.
-
 ---
 
 ## Plugins
