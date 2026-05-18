@@ -214,7 +214,7 @@ kaos-engine/
 │   │   ├── distortion/      # waveshaper DSP
 │   │   ├── delay/           # delay line DSP
 │   │   ├── reverb/          # reverb algorithms
-│   │   └── shifter/         # pitch shifting DSP (3 voices, 3 algorithms)
+│   │   └── pitch_shifter/   # pitch shifting DSP (3 voices, 3 algorithms)
 │   ├── plugin/              # JUCE AudioProcessor wrappers + editors + shared LookAndFeel
 │   └── standalone/          # standalone app build targets
 ├── third_party/             # JUCE 7 (git submodule)
