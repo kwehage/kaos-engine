@@ -1,5 +1,8 @@
 subdir('framework/lfo')
+subdir('framework/stochastic')
+subdir('framework/envelope_follower')
 subdir('effects/distortion')
+subdir('effects/filter')
 subdir('effects/delay')
 subdir('effects/reverb')
 subdir('effects/pitch_shifter')

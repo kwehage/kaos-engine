@@ -84,6 +84,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout GatePlugin::make_params()
 GatePlugin::GatePlugin()
     : AudioProcessor(BusesProperties()
           .withInput ("Input",   juce::AudioChannelSet::stereo(), true)
+          .withInput ("Key In",  juce::AudioChannelSet::stereo(), false)
           .withOutput("Output",  juce::AudioChannelSet::stereo(), true)
           .withOutput("Gate CV", juce::AudioChannelSet::mono(),   false)),
       apvts_(*this, nullptr, "KE_GATE", make_params())
@@ -104,8 +105,11 @@ bool GatePlugin::isBusesLayoutSupported(const BusesLayout& layouts) const
 {
     if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo()) return false;
     if (layouts.getMainInputChannelSet()  != juce::AudioChannelSet::stereo()) return false;
-    const auto& cv = layouts.getChannelSet(false, 1);
-    return cv.isDisabled() || cv == juce::AudioChannelSet::mono();
+    const auto& cv  = layouts.getChannelSet(false, 1);
+    const auto& key = layouts.getChannelSet(true,  1);
+    return (cv.isDisabled()  || cv  == juce::AudioChannelSet::mono())
+        && (key.isDisabled() || key == juce::AudioChannelSet::mono()
+                             || key == juce::AudioChannelSet::stereo());
 }
 
 void GatePlugin::prepareToPlay(double sr, int bs) { dsp_.prepare(sr, bs); }
@@ -128,27 +132,32 @@ void GatePlugin::processBlock(juce::AudioBuffer<float>& buf,
     dsp_.set_mix        (p_mix_->load());
 
     const int ns  = buf.getNumSamples();
-    const int nch = buf.getNumChannels();
 
     for (int ch = getTotalNumInputChannels(); ch < getTotalNumOutputChannels(); ++ch)
         buf.clear(ch, 0, ns);
 
-    if (nch >= 2)
-        dsp_.process(buf.getWritePointer(0), buf.getWritePointer(1), ns);
-    else if (nch == 1) {
+    // Key In sidechain bus (input bus 1). Read before any writes to shared buffer slots.
+    auto key_buf      = getBusBuffer(buf, true, 1);
+    const int key_ch  = key_buf.getNumChannels();
+    const float* key_l = (key_ch >= 1) ? key_buf.getReadPointer(0) : nullptr;
+    // Fold mono key to both channels; stereo uses its own R channel.
+    const float* key_r = (key_ch >= 2) ? key_buf.getReadPointer(1) : key_l;
+
+    auto main_buf = getBusBuffer(buf, true, 0);
+    if (main_buf.getNumChannels() >= 2)
+        dsp_.process(buf.getWritePointer(0), buf.getWritePointer(1), ns, key_l, key_r);
+    else if (main_buf.getNumChannels() == 1) {
         juce::HeapBlock<float> tmp(static_cast<size_t>(ns));
         std::copy(buf.getReadPointer(0), buf.getReadPointer(0) + ns, tmp.getData());
-        dsp_.process(buf.getWritePointer(0), tmp.getData(), ns);
+        dsp_.process(buf.getWritePointer(0), tmp.getData(), ns, key_l, key_r);
     }
 
-    // Write gate state to optional CV output bus (channel 2 when enabled).
-    // 1.0 = gate open or in hold (actively gating); 0.0 = releasing or closed.
-    if (nch >= 3) {
-        const bool open = dsp_.get_disp_state() >= GateDisplayState::Hold;
-        const float cv  = open ? 1.0f : 0.0f;
-        float* cv_ptr   = buf.getWritePointer(2);
-        for (int i = 0; i < ns; ++i)
-            cv_ptr[i] = cv;
+    // Write gate state to optional CV output bus. 1.0 = open/hold, 0.0 = closed.
+    auto cv_buf = getBusBuffer(buf, false, 1);
+    if (cv_buf.getNumChannels() >= 1) {
+        const float cv = (dsp_.get_disp_state() >= GateDisplayState::Hold) ? 1.0f : 0.0f;
+        float* cv_ptr  = cv_buf.getWritePointer(0);
+        for (int i = 0; i < ns; ++i) cv_ptr[i] = cv;
     }
 }
 

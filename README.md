@@ -15,11 +15,14 @@ covering a wide range of sonic character.
   - [kaos-engine::pitch-shifter](#kaos-enginepitch-shifter)
   - [kaos-engine::modulator](#kaos-enginemodulator)
   - [kaos-engine::frequency-shifter](#kaos-enginefrequency-shifter)
+  - [kaos-engine::filter](#kaos-enginefilter)
   - [kaos-engine::eq](#kaos-engineeq)
   - [kaos-engine::compressor](#kaos-enginecompressor)
   - [kaos-engine::gate](#kaos-enginegate)
 - [Controllers](#controllers)
   - [kaos-engine::lfo](#kaos-enginelfo)
+  - [kaos-engine::stochastic](#kaos-enginestochastic)
+  - [kaos-engine::envelope-follower](#kaos-engineenvelope-follower)
 - [Building](#building)
 - [Project layout](#project-layout)
 - [License](#license)
@@ -279,7 +282,51 @@ buffer; reading before writing ensures each echo has been shifted an additional 
 
 ---
 
+### kaos-engine::filter
+
+A stereo filter with 12 modes covering the full range of filters used in sound design,
+from clean surgical EQ curves to resonant synthesiser filters and metallic comb effects.
+A log-scale frequency response display updates in real time as parameters change.
+
+![kaos-engine::filter](doc/images/filter.png)
+
+**Modes**
+
+| Mode | Character |
+|---|---|
+| **LP 12** | 2-pole Simper SVF lowpass, -12 dB/oct. Warm rolloff; resonance peak at cutoff |
+| **LP 24** | 4-pole cascaded SVF lowpass, -24 dB/oct. Steep synthesiser-style tone |
+| **HP 12** | 2-pole highpass. Bright, open; removes low-end build-up |
+| **HP 24** | 4-pole highpass. Tight low cut for clinical clarity |
+| **Band Pass** | SVF bandpass. Passes a band around the cutoff, attenuates above and below |
+| **Notch** | SVF band-reject. Removes a narrow band; tames resonances and room modes |
+| **All Pass** | SVF allpass. Flat magnitude, phase shift near the cutoff. Display shows the 0 dB line with annotation |
+| **Peak** | RBJ peaking bell EQ. GAIN sets boost or cut amount |
+| **Low Shelf** | RBJ low shelf. Boosts or cuts all frequencies below the cutoff |
+| **Hi Shelf** | RBJ high shelf. Boosts or cuts all frequencies above the cutoff |
+| **Comb** | Feedback comb. Resonant peaks at the fundamental (cutoff) and every integer harmonic. RESONANCE controls feedback gain; DRIVE controls harmonic damping |
+| **Ladder** | 4-pole Moog-style LP using a Stilson-Smith topology with tanh resonance feedback. High RESONANCE approaches self-oscillation |
+
+**Parameters**
+
+| Knob | Range | Description |
+|---|---|---|
+| Cutoff | 20 Hz – 20 kHz | Filter cutoff / fundamental frequency. Log scale, skew centre 1 kHz. For Comb: sets the spacing between harmonic peaks (fundamental = spacing) |
+| Resonance | 0.05 – 20 | Filter Q. 0.707 = Butterworth (flat passband). For Comb: feedback gain (higher = taller, sharper teeth). For Ladder: feedback amount; above ~4 the filter self-oscillates |
+| Drive | 0 – 1 | Pre-filter soft saturation (all modes except Comb). Comb only: feedback damping — attenuates upper harmonics progressively; 0 = all teeth equal height, 1 = only fundamental survives |
+| Gain | -24 to +24 dB | Boost or cut amount. Active for Peak, Low Shelf, and Hi Shelf only; greyed out for all other modes |
+| Mix | 0 – 1 | Dry/wet blend |
+| Output | -20 to +6 dB | Post-mix output trim |
+
+**Display:** Log frequency response from 20 Hz to 20 kHz with dB grid at ±12 / 0 dB,
+frequency grid lines at 100 Hz / 1 kHz / 10 kHz, and a vertical cutoff frequency marker
+labelled in Hz or kHz. The All Pass mode annotates the flat line to explain the phase-only behaviour.
+
+---
+
 ### kaos-engine::eq
+
+![kaos-engine::eq](doc/images/eq.png)
 
 A 5-band parametric equalizer with a real-time spectrum analyzer. Each band uses a
 second-order RBJ Cookbook biquad filter (Transposed Direct Form II). The frequency
@@ -358,7 +405,7 @@ Sidechain trigger mode, so the LFO starts and stops in response to the gate stat
 |---|---|
 | **Gate** | Full attenuation below threshold. Binary open/close with RANGE setting the closed-state floor. Cleans up noise floor between phrases |
 | **Expander** | Proportional attenuation below threshold using RATIO. Gentler than gating — reduces noise by 10–20 dB rather than silencing it entirely |
-| **Ducker** | Attenuates when the signal *exceeds* threshold. Use on a backing track keyed to a lead signal — the backing ducks when the lead is active |
+| **Ducker** | Attenuates when the *key signal* exceeds threshold. Requires a signal on the Key In sidechain bus. Classic use: music ducks when a vocal is active, or a bass ducks when a kick hits |
 
 **Parameters**
 
@@ -373,6 +420,11 @@ Sidechain trigger mode, so the LFO starts and stops in response to the gate stat
 | Hysteresis | 0–20 dB | Band below threshold where the gate remains open once triggered, preventing chattering on signals hovering near the threshold |
 | Output | −20 to +6 dB | Output trim |
 | Mix | 0–1 | Dry/wet blend |
+
+**Key In sidechain input:** When the optional stereo Key In bus is connected, its signal is
+used for level detection instead of the main input. This is required for Ducker mode and
+useful in all modes — for example, keying a gate from a clean drum bus while gating a reverb
+return. Mono key signals are automatically folded to both channels.
 
 **Gate CV output:** When the optional Gate CV bus is enabled in the host, a mono CV signal
 is written each block: `+1.0` when the gate is open or in hold, `0.0` when closed. Connect
@@ -447,6 +499,96 @@ enables native parameter modulation routing in Bitwig Studio, Reaper, and FL Stu
 
 ---
 
+### kaos-engine::stochastic
+
+A stochastic modulation controller with six signal-generation modes ranging from classic
+sample-and-hold to deterministic chaos. Like the LFO, it passes stereo audio through
+unmodified and outputs a control signal via MIDI CC, Audio CV, or both. A scrolling
+strip chart shows the live output signal in real time.
+
+**Modes**
+
+| Mode | Character | SHAPE |
+|---|---|---|
+| **S+H** | Jumps to a new random value at each clock tick. The classic "staircase" CV | Output range: 0 = narrow (near zero), 1 = full [-1..+1] |
+| **S+Glide** | Like S+H but slides smoothly between values | Glide fraction: 0 = instant jump, 1 = always gliding |
+| **Smooth** | Cubic interpolation between random targets -- continuous, no discontinuities | Curve: 0 = linear ramp, 1 = smoothstep |
+| **Brownian** | Ornstein-Uhlenbeck random walk. Output drifts organically then returns | Mean reversion: 0 = free drift, 1 = strong pull to zero |
+| **Lorenz** | Lorenz strange attractor (x component). Deterministic chaos -- never repeats | rho parameter: 0 = rho 24 (simpler orbits), 0.5 = rho 28 (classic), 1 = rho 36 (wilder) |
+| **Logistic** | Logistic map x -> r*x*(1-x) iterated at the clock rate | Chaos: 0 = period-2 at r=3.5, 1 = fully chaotic at r=4.0 |
+
+**Parameters**
+
+| Knob | Range | Description |
+|---|---|---|
+| Rate | 0.01-100 Hz | Clock speed for all modes. In Sync mode this is derived from the host BPM |
+| Depth | 0-1 | Output amplitude scale |
+| Shape | 0-1 | Mode-specific modifier; see table above |
+| Offset | -1 to +1 | DC shift added after depth scaling |
+| CC Num | 0-127 | MIDI CC number (active in MIDI CC output modes) |
+| CC Ch | 1-16 | MIDI channel for CC messages |
+
+**Controls**
+
+| Control | Options | Description |
+|---|---|---|
+| Sync | Free / Sync | When Sync, Rate is derived from the host BPM and the Division selector |
+| Division | Whole to 1/16 | Beat subdivision for tempo-synced mode |
+| Output Mode | MIDI CC / Audio CV / MIDI CC + CV | Which output paths are active |
+| Trigger Mode | Free / Note Retrigger / Transport | When Free, runs continuously. Note Retrigger resets state on MIDI note-on. Transport resets on DAW play |
+
+---
+
+### kaos-engine::envelope-follower
+
+An amplitude envelope detector that tracks the loudness of an incoming signal and
+outputs that as a CV or MIDI CC. Insert it on any track and it will follow the
+amplitude of that signal, or connect an optional stereo **Sidechain** bus to follow
+a separate source. Five output shapes let you derive different control curves from
+the same envelope -- from direct tracking to onset detection to release phase monitoring.
+
+![kaos-engine::envelope-follower](doc/images/envelope-follower.png)
+
+**Output shapes**
+
+| Shape | Character | Use case |
+|---|---|---|
+| **Follow** | CV = envelope level directly. Louder input = higher CV | Tremolo, auto-wah, vocoder AM, general envelope-to-parameter mapping |
+| **Duck** | CV = 1 - envelope. Loud input = low CV | Sidechain ducking: music drops when the kick hits, rises when it stops |
+| **Rise** | CV = envelope only while signal is rising, 0 during decay | Onset/transient detector; triggers on each new note attack |
+| **Fall** | CV = envelope only while signal is falling, 0 during attack | Decay phase detector; responds to note releases |
+| **Release** | Rises 0->1 as signal falls from peak back to silence | Starts at 0 when signal peaks; grows as the note decays. Useful for crossfades, reverb swells, and anything that should intensify as a sound dies away |
+
+**Parameters**
+
+| Knob | Range | Description |
+|---|---|---|
+| Attack | 0.1-500 ms | How quickly the envelope responds to a rising signal. Short = catches every transient; long = smooths over them |
+| Release | 1-5000 ms | How quickly the envelope decays after the signal drops |
+| Gain | 0.1x-20x | Pre-detection input scaling. Increase to make quiet signals fill the full [0,1] output range |
+| Depth | 0-1 | Output scale applied after shaping |
+| CC Num | 0-127 | MIDI CC number (active in MIDI CC output modes) |
+| CC Ch | 1-16 | MIDI channel for CC messages |
+
+**Detector** (combo, top-left)
+
+| Mode | Algorithm | Character |
+|---|---|---|
+| **Peak** | Rectifies the signal then applies ballistics | Fast transient response; responds to instantaneous peaks |
+| **RMS** | Squares, low-pass filters, then takes sqrt | Tracks perceived loudness; less reactive to brief spikes |
+
+**Display:** Dual-line scrolling strip chart. The faint red line is the raw detected
+envelope (input level). The bright red line with fill is the shaped CV output. Switching
+shapes makes the two lines visually diverge -- for example, in Release mode the input
+falls while the CV rises, and in Rise mode the CV is zero during quiet passages.
+
+**Sidechain bus:** When the optional stereo Sidechain input is connected, its signal
+is used for detection instead of the main input. The main audio still passes through
+unmodified. Use this to duck one track based on the loudness of another, or to connect
+kaos-engine::gate's Gate CV output to trigger envelope-following in sync with gate events.
+
+---
+
 ## Building
 
 Requires [Meson](https://mesonbuild.com/) >= 1.1 and a C++17 compiler.
@@ -479,11 +621,14 @@ kaos-engine/
 │   │   ├── pitch_shifter/   # granular pitch shifting DSP (3 voices, 3 algorithms)
 │   │   ├── modulator/       # AM / tremolo / ring mod DSP
 │   │   ├── frequency_shifter/ # SSB Hilbert frequency shifter DSP
+│   │   ├── filter/          # multi-mode filter DSP (SVF, biquad, comb, ladder)
 │   │   ├── eq/              # 5-band parametric EQ DSP (RBJ biquads)
 │   │   ├── compressor/      # dynamics compressor DSP (VCA / Optical / FET)
 │   │   └── gate/            # noise gate / expander / ducker DSP
 │   ├── framework/
-│   │   └── lfo/             # LFO controller DSP (no JUCE dependency)
+│   │   ├── lfo/             # LFO controller DSP (no JUCE dependency)
+│   │   ├── stochastic/      # stochastic controller DSP (6 modes inc. Lorenz attractor)
+│   │   └── envelope_follower/ # envelope follower DSP (Peak/RMS, 5 output shapes)
 │   ├── plugin/              # JUCE AudioProcessor wrappers + editors + shared LookAndFeel
 │   └── standalone/          # standalone app build targets
 ├── doc/

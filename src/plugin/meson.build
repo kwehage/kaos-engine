@@ -607,6 +607,201 @@ custom_target('kaos-engine-gate-vst3-bundle',
     build_by_default: true,
 )
 
+# ── Envelope Follower VST3 ────────────────────────────────────────────────────
+env_plugin_defines = [
+    '-DJucePlugin_Build_VST3=1',
+    '-DJucePlugin_Build_VST=0',
+    '-DJucePlugin_Build_AU=0',
+    '-DJucePlugin_Build_AUv3=0',
+    '-DJucePlugin_Build_AAX=0',
+    '-DJucePlugin_Build_Standalone=0',
+    '-DJucePlugin_Build_LV2=0',
+    '-DJucePlugin_Build_Unity=0',
+    '-DJucePlugin_Name="kaos-engine::envelope-follower"',
+    '-DJucePlugin_Manufacturer="kaos-engine"',
+    '-DJucePlugin_ManufacturerWebsite=""',
+    '-DJucePlugin_ManufacturerEmail=""',
+    '-DJucePlugin_ManufacturerCode=0x4e75456e',
+    '-DJucePlugin_PluginCode=0x4e654566',
+    '-DJucePlugin_IsSynth=0',
+    '-DJucePlugin_WantsMidiInput=0',
+    '-DJucePlugin_ProducesMidiOutput=1',
+    '-DJucePlugin_IsMidiEffect=0',
+    '-DJucePlugin_EditorRequiresKeyboardFocus=0',
+    '-DJucePlugin_Version=0x010000',
+    '-DJucePlugin_VersionString="1.0.0"',
+    '-DJucePlugin_VersionCode=0x010000',
+    '-DJucePlugin_Vst3Category="Fx|Tools"',
+    '-DJUCE_VST3_CAN_REPLACE_VST2=0',
+    '-DJucePlugin_VSTUniqueID=JucePlugin_PluginCode',
+]
+
+env_plugin_inc = include_directories(['.', '../framework/envelope_follower'])
+
+env_plugin_srcs = files([
+    'envelope_follower_plugin.cpp',
+    'envelope_follower_editor.cpp',
+    'look_and_feel.cpp',
+])
+
+env_all_srcs = env_plugin_srcs + envelope_follower_srcs + vst3_client_src
+
+env_vst3_lib = shared_library('kaos-engine-envelope-follower-vst3',
+    name_prefix: '',
+    sources: env_all_srcs,
+    include_directories: [env_plugin_inc, juce_include_dirs],
+    cpp_args: build_flags_cpp + build_flags + env_plugin_defines + [
+        '-Wno-deprecated-declarations', '-Wno-non-virtual-dtor', '-Wno-sign-compare',
+    ],
+    link_args: plugin_link_flags,
+    link_with: lib_juce,
+    dependencies: system_deps,
+    install: false,
+)
+
+env_vst3_bundle_contents = meson.current_build_dir() / 'kaos-engine-envelope-follower.vst3' / 'Contents' / vst3_arch
+
+custom_target('kaos-engine-envelope-follower-vst3-bundle',
+    output: 'kaos-engine-envelope-follower.vst3',
+    input: env_vst3_lib,
+    command: [
+        'bash', '-c',
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-envelope-follower@1@"'.format(
+            env_vst3_bundle_contents, lib_suffix),
+    ],
+    build_by_default: true,
+)
+
+# ── Stochastic VST3 ───────────────────────────────────────────────────────────
+stoch_plugin_defines = [
+    '-DJucePlugin_Build_VST3=1',
+    '-DJucePlugin_Build_VST=0',
+    '-DJucePlugin_Build_AU=0',
+    '-DJucePlugin_Build_AUv3=0',
+    '-DJucePlugin_Build_AAX=0',
+    '-DJucePlugin_Build_Standalone=0',
+    '-DJucePlugin_Build_LV2=0',
+    '-DJucePlugin_Build_Unity=0',
+    '-DJucePlugin_Name="kaos-engine::stochastic"',
+    '-DJucePlugin_Manufacturer="kaos-engine"',
+    '-DJucePlugin_ManufacturerWebsite=""',
+    '-DJucePlugin_ManufacturerEmail=""',
+    '-DJucePlugin_ManufacturerCode=0x4e75456e',
+    '-DJucePlugin_PluginCode=0x4e655374',
+    '-DJucePlugin_IsSynth=0',
+    '-DJucePlugin_WantsMidiInput=1',
+    '-DJucePlugin_ProducesMidiOutput=1',
+    '-DJucePlugin_IsMidiEffect=0',
+    '-DJucePlugin_EditorRequiresKeyboardFocus=0',
+    '-DJucePlugin_Version=0x010000',
+    '-DJucePlugin_VersionString="1.0.0"',
+    '-DJucePlugin_VersionCode=0x010000',
+    '-DJucePlugin_Vst3Category="Fx|Tools"',
+    '-DJUCE_VST3_CAN_REPLACE_VST2=0',
+    '-DJucePlugin_VSTUniqueID=JucePlugin_PluginCode',
+]
+
+stoch_plugin_inc = include_directories(['.', '../framework/stochastic'])
+
+stoch_plugin_srcs = files([
+    'stochastic_plugin.cpp',
+    'stochastic_editor.cpp',
+    'look_and_feel.cpp',
+])
+
+stoch_all_srcs = stoch_plugin_srcs + stochastic_srcs + vst3_client_src
+
+stoch_vst3_lib = shared_library('kaos-engine-stochastic-vst3',
+    name_prefix: '',
+    sources: stoch_all_srcs,
+    include_directories: [stoch_plugin_inc, juce_include_dirs],
+    cpp_args: build_flags_cpp + build_flags + stoch_plugin_defines + [
+        '-Wno-deprecated-declarations', '-Wno-non-virtual-dtor', '-Wno-sign-compare',
+    ],
+    link_args: plugin_link_flags,
+    link_with: lib_juce,
+    dependencies: system_deps,
+    install: false,
+)
+
+stoch_vst3_bundle_contents = meson.current_build_dir() / 'kaos-engine-stochastic.vst3' / 'Contents' / vst3_arch
+
+custom_target('kaos-engine-stochastic-vst3-bundle',
+    output: 'kaos-engine-stochastic.vst3',
+    input: stoch_vst3_lib,
+    command: [
+        'bash', '-c',
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-stochastic@1@"'.format(
+            stoch_vst3_bundle_contents, lib_suffix),
+    ],
+    build_by_default: true,
+)
+
+# ── Filter VST3 ───────────────────────────────────────────────────────────────
+filter_plugin_defines = [
+    '-DJucePlugin_Build_VST3=1',
+    '-DJucePlugin_Build_VST=0',
+    '-DJucePlugin_Build_AU=0',
+    '-DJucePlugin_Build_AUv3=0',
+    '-DJucePlugin_Build_AAX=0',
+    '-DJucePlugin_Build_Standalone=0',
+    '-DJucePlugin_Build_LV2=0',
+    '-DJucePlugin_Build_Unity=0',
+    '-DJucePlugin_Name="kaos-engine::filter"',
+    '-DJucePlugin_Manufacturer="kaos-engine"',
+    '-DJucePlugin_ManufacturerWebsite=""',
+    '-DJucePlugin_ManufacturerEmail=""',
+    '-DJucePlugin_ManufacturerCode=0x4e75456e',
+    '-DJucePlugin_PluginCode=0x4e654669',
+    '-DJucePlugin_IsSynth=0',
+    '-DJucePlugin_WantsMidiInput=0',
+    '-DJucePlugin_ProducesMidiOutput=0',
+    '-DJucePlugin_IsMidiEffect=0',
+    '-DJucePlugin_EditorRequiresKeyboardFocus=0',
+    '-DJucePlugin_Version=0x010000',
+    '-DJucePlugin_VersionString="1.0.0"',
+    '-DJucePlugin_VersionCode=0x010000',
+    '-DJucePlugin_Vst3Category="Fx|Filter"',
+    '-DJUCE_VST3_CAN_REPLACE_VST2=0',
+    '-DJucePlugin_VSTUniqueID=JucePlugin_PluginCode',
+]
+
+filter_plugin_inc = include_directories(['.', '../effects/filter'])
+
+filter_plugin_srcs = files([
+    'filter_plugin.cpp',
+    'filter_editor.cpp',
+    'look_and_feel.cpp',
+])
+
+filter_all_srcs = filter_plugin_srcs + filter_srcs + vst3_client_src
+
+filter_vst3_lib = shared_library('kaos-engine-filter-vst3',
+    name_prefix: '',
+    sources: filter_all_srcs,
+    include_directories: [filter_plugin_inc, juce_include_dirs],
+    cpp_args: build_flags_cpp + build_flags + filter_plugin_defines + [
+        '-Wno-deprecated-declarations', '-Wno-non-virtual-dtor', '-Wno-sign-compare',
+    ],
+    link_args: plugin_link_flags,
+    link_with: lib_juce,
+    dependencies: system_deps,
+    install: false,
+)
+
+filter_vst3_bundle_contents = meson.current_build_dir() / 'kaos-engine-filter.vst3' / 'Contents' / vst3_arch
+
+custom_target('kaos-engine-filter-vst3-bundle',
+    output: 'kaos-engine-filter.vst3',
+    input: filter_vst3_lib,
+    command: [
+        'bash', '-c',
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-filter@1@"'.format(
+            filter_vst3_bundle_contents, lib_suffix),
+    ],
+    build_by_default: true,
+)
+
 # ── LFO VST3 ──────────────────────────────────────────────────────────────────
 lfo_plugin_defines = [
     '-DJucePlugin_Build_VST3=1',

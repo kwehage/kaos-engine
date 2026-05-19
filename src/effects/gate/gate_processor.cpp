@@ -97,7 +97,8 @@ float GateProcessor::gain_computer(float level_db) const
 
 // ── Processing ────────────────────────────────────────────────────────────────
 
-void GateProcessor::process(float* left, float* right, int num_samples)
+void GateProcessor::process(float* left, float* right, int num_samples,
+                             const float* key_l, const float* key_r)
 {
     // 100 Hz 1-pole HPF coefficient (prevents subsonic content from triggering gate)
     const float hpf_alpha = std::exp(-2.0f * 3.14159265f * 100.0f / float(sample_rate_));
@@ -113,11 +114,15 @@ void GateProcessor::process(float* left, float* right, int num_samples)
         const float dry_l = left[i];
         const float dry_r = right[i];
 
+        // Use sidechain key when provided; fall back to self-detection.
+        const float src_l = key_l ? key_l[i] : dry_l;
+        const float src_r = key_r ? key_r[i] : dry_r;
+
         // ── 100 Hz HPF on detection signal (prevents bass from holding gate open) ──
-        hpf_l_ = hpf_alpha * hpf_l_ + (1.0f - hpf_alpha) * dry_l;
-        hpf_r_ = hpf_alpha * hpf_r_ + (1.0f - hpf_alpha) * dry_r;
-        const float det_l = dry_l - hpf_l_;
-        const float det_r = dry_r - hpf_r_;
+        hpf_l_ = hpf_alpha * hpf_l_ + (1.0f - hpf_alpha) * src_l;
+        hpf_r_ = hpf_alpha * hpf_r_ + (1.0f - hpf_alpha) * src_r;
+        const float det_l = src_l - hpf_l_;
+        const float det_r = src_r - hpf_r_;
 
         // ── Level detection: stereo-linked RMS of current sample pair ─────────────
         const float lsq      = det_l * det_l + det_r * det_r;

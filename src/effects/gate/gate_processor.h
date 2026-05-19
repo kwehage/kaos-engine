@@ -26,7 +26,10 @@ public:
     GateProcessor() = default;
 
     void prepare(double sample_rate, int block_size);
-    void process(float* left, float* right, int num_samples);
+    // key_l / key_r: optional sidechain detection signal (Ducker, keyed gate/expander).
+    // Pass nullptr to use the main signal for self-detection.
+    void process(float* left, float* right, int num_samples,
+                 const float* key_l = nullptr, const float* key_r = nullptr);
     void reset();
 
     void set_algorithm  (GateAlgorithm a);
