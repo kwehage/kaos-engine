@@ -502,7 +502,9 @@ enables native parameter modulation routing in Bitwig Studio, Reaper, and FL Stu
 ### kaos-engine::stochastic
 
 A stochastic modulation controller with six signal-generation modes ranging from classic
-sample-and-hold to deterministic chaos. Like the LFO, it passes stereo audio through
+sample-and-hold to deterministic chaos.
+
+![kaos-engine::stochastic](doc/images/stochastic.png) Like the LFO, it passes stereo audio through
 unmodified and outputs a control signal via MIDI CC, Audio CV, or both. A scrolling
 strip chart shows the live output signal in real time.
 
