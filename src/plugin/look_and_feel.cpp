@@ -73,6 +73,7 @@ NullEngineLookAndFeel::NullEngineLookAndFeel(ColourPalette palette)
     setColour(Slider::textBoxTextColourId,              Colour(p_.text_primary));
     setColour(Slider::textBoxBackgroundColourId,        Colour(p_.surface));
     setColour(Slider::textBoxOutlineColourId,           Colour(0x00000000));
+    setColour(Label::backgroundColourId,                Colour(0x00000000));  // transparent — editor fills bg
     setColour(Label::textColourId,                      Colour(p_.text_muted));
     setColour(ComboBox::backgroundColourId,             Colour(p_.surface));
     setColour(ComboBox::outlineColourId,                Colour(p_.border));
@@ -129,7 +130,9 @@ void NullEngineLookAndFeel::drawRotarySlider(Graphics& g,
 // ── Label ──────────────────────────────────────────────────────────────────────
 void NullEngineLookAndFeel::drawLabel(Graphics& g, Label& label)
 {
-    g.fillAll(label.findColour(Label::backgroundColourId));
+    const Colour bg = label.findColour(Label::backgroundColourId);
+    if (bg.getAlpha() > 0)
+        g.fillAll(bg);
     if (!label.isBeingEdited()) {
         const Font font(getLabelFont(label));
         g.setColour(label.findColour(Label::textColourId));

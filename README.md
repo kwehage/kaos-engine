@@ -14,6 +14,8 @@ covering a wide range of sonic character.
   - [kaos-engine::reverb](#kaos-enginereverb)
   - [kaos-engine::pitch-shifter](#kaos-enginepitch-shifter)
   - [kaos-engine::modulator](#kaos-enginemodulator)
+  - [kaos-engine::frequency-shifter](#kaos-enginefrequency-shifter)
+  - [kaos-engine::eq](#kaos-engineeq)
 - [Building](#building)
 - [Project layout](#project-layout)
 - [License](#license)
@@ -233,6 +235,75 @@ form of the modulator signal. PHASE offsets the right-channel oscillator for ste
 
 ---
 
+### kaos-engine::frequency-shifter
+
+A stereo frequency shifter using the SSB phasing method (Yehar IIR Hilbert network).
+Unlike pitch shifting, frequency shifting adds a constant Hz offset to every partial,
+destroying harmonic ratios and creating metallic, bell-like inharmonic tones. An optional
+feedback delay loop places the shifter inside its own feedback path, enabling Risset
+endless glissandos and barberpole phasing effects.
+
+![kaos-engine::reverb](doc/images/frequency-shifter.png)
+
+**Directions**
+
+| Direction | Algorithm | Character |
+|---|---|---|
+| **Up** | `y = I·cos(θ) − Q·sin(θ)` | Every frequency moves +Δ Hz. At small Δ: chorusing and beating. At large Δ: inharmonic, metallic. With feedback: perpetual ascending Risset glissando. |
+| **Down** | `y = I·cos(θ) + Q·sin(θ)` | Every frequency moves −Δ Hz. Mirror of up. With feedback: perpetual descending glissando. |
+| **Both** | `y = I·cos(θ)` | Simultaneous up + down; Q terms cancel. Sidebands at f_in ± Δ (ring-mod character). With feedback: barberpole Shepard–Risset phasing illusion. |
+
+**Parameters**
+
+| Knob | Symbol | Range | Description |
+|---|---|---|---|
+| Shift | Δ | 0–5 000 Hz | Frequency offset. Log scale; skew centre 50 Hz |
+| Feedback | g | 0–0.99 | Level of the shifted echo fed back before re-shifting. Each pass adds another Δ Hz, creating a Risset glissando |
+| Delay | d | 1–2 000 ms | Time between glissando echoes. Only audible when FEEDBACK > 0 |
+| Mod 1 | m1 | 0–10 Hz | LFO rate sweeping the shift amount. Creates a barberpole phaser sweep |
+| Mod 2 | m2 | 0–500 Hz | LFO depth (peak deviation). `eff_Δ = Δ + m2·sin(m1·t)`. Inactive if MOD 1 = 0 |
+| Output | — | −20 to +6 dB | Post-mix output trim |
+| Mix | w | 0–1 | Dry/wet blend |
+
+**Implementation:** Yehar's 8-pole IIR polyphase allpass Hilbert network (±0.7° phase error,
+20–20 000 Hz). The feedback loop writes the shifted signal to a Hermite-interpolated circular
+buffer; reading before writing ensures each echo has been shifted an additional Δ Hz.
+
+---
+
+### kaos-engine::eq
+
+A 5-band parametric equalizer with a real-time spectrum analyzer. Each band uses a
+second-order RBJ Cookbook biquad filter (Transposed Direct Form II). The frequency
+response of all bands is computed analytically using the phi trick and drawn as an
+overlay on top of the spectrum display.
+
+**Bands**
+
+| Band | Filter type | Frequency range | Has GAIN knob |
+|---|---|---|---|
+| **HP** | High-pass (Butterworth) | 20–2 000 Hz | No |
+| **LO SHELF** | Low shelf | 20–1 000 Hz | Yes (±24 dB) |
+| **PEAK** | Peaking bell | 200–8 000 Hz | Yes (±24 dB) |
+| **HI SHELF** | High shelf | 2 000–20 000 Hz | Yes (±24 dB) |
+| **LP** | Low-pass (Butterworth) | 200–20 000 Hz | No |
+
+**Parameters**
+
+| Knob | Range | Description |
+|---|---|---|
+| FREQ (per band) | Band-specific | Filter cutoff / centre / shelf frequency |
+| GAIN (LS, PEAK, HS) | ±24 dB | Boost or cut at the band frequency. 0 dB = flat |
+| Q (per band) | 0.1–30 | Filter resonance or shelf slope. 0.707 = Butterworth (maximally flat). Higher = narrower (PEAK) or steeper with slight overshoot (shelves/filters) |
+| Output | −20 to +6 dB | Post-EQ output trim to compensate for level changes |
+| Mix | 0–1 | Dry/wet blend. 0 = bypass, 1 = full EQ applied |
+
+**Display:** The upper portion shows a semi-transparent spectrum of the live input signal
+(2048-point FFT with Hann window, 30 Hz refresh). The red EQ curve is computed analytically
+from the current parameter values and redraws on every knob change.
+
+---
+
 ## Building
 
 Requires [Meson](https://mesonbuild.com/) >= 1.1 and a C++17 compiler.
@@ -258,7 +329,9 @@ kaos-engine/
 │   │   ├── delay/           # delay line DSP
 │   │   ├── reverb/          # reverb algorithms
 │   │   ├── pitch_shifter/   # granular pitch shifting DSP (3 voices, 3 algorithms)
-│   │   └── modulator/       # AM / tremolo / ring mod DSP
+│   │   ├── modulator/       # AM / tremolo / ring mod DSP
+│   │   ├── frequency_shifter/ # SSB Hilbert frequency shifter DSP
+│   │   └── eq/              # 5-band parametric EQ DSP (RBJ biquads)
 │   ├── plugin/              # JUCE AudioProcessor wrappers + editors + shared LookAndFeel
 │   └── standalone/          # standalone app build targets
 ├── third_party/             # JUCE 7 (git submodule)

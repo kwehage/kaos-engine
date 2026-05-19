@@ -64,6 +64,9 @@ void PitchShifterProcessor::prepare(double sample_rate, int /*block_size*/)
     for (int vi = 0; vi < kNumVoices; ++vi) {
         update_voice_pitch(vi);
         update_voice_mod(vi);
+        // Precompute Hann window for PV (sample-rate-independent)
+        for (int n = 0; n < kPvN; ++n)
+            pv_voices_[vi].window[n] = 0.5f - 0.5f * std::cos(2.0f * kPi * float(n) / float(kPvN));
     }
     reset();
 }
@@ -89,6 +92,21 @@ void PitchShifterProcessor::reset()
         v.tape_prev_    = v.tape_delay_;
         v.tape_fade_    = 1.0f;
         v.flutter_phase_= 0.0f;
+
+        // Reset Phase Vocoder state for this voice
+        PvVoice& pv = pv_voices_[vi];
+        const int mask = kPvN * 2 - 1;
+        std::fill(pv.L.out_buf,    pv.L.out_buf    + kPvN * 2, 0.0f);
+        std::fill(pv.R.out_buf,    pv.R.out_buf    + kPvN * 2, 0.0f);
+        std::fill(pv.L.last_phase, pv.L.last_phase + kPvBins,  0.0f);
+        std::fill(pv.R.last_phase, pv.R.last_phase + kPvBins,  0.0f);
+        std::fill(pv.L.synth_phase,pv.L.synth_phase+ kPvBins,  0.0f);
+        std::fill(pv.R.synth_phase,pv.R.synth_phase+ kPvBins,  0.0f);
+        // Prime: out_write leads out_read by (N - Hop) so first frame lands correctly
+        pv.L.out_write = pv.R.out_write = kPvN - kPvHop;
+        pv.L.out_read  = pv.R.out_read  = 0;
+        pv.fill = -(kPvN - kPvHop);   // first frame fires after kPvN input samples
+        (void)mask;
     }
 }
 
@@ -203,8 +221,11 @@ void PitchShifterProcessor::process_granular(int vi, float& out_l, float& out_r)
     const float ea = 1.0f - std::fabsf(pa / gs * 2.0f - 1.0f);
     const float eb = 1.0f - std::fabsf(pb / gs * 2.0f - 1.0f);
 
-    const float da = std::clamp(pf * (gs - pa) + v.chaos_a_ + 1.0f, 1.0f, max_d);
-    const float db = std::clamp(pf * (gs - pb) + v.chaos_a_ + 1.0f, 1.0f, max_d);
+    // Delay = gs + (1 - pf) * pa: read pointer advances at rate pf per sample.
+    // At pa=0: delay = gs (exactly 1 grain behind write pos, not pf grains behind).
+    // At pa=gs: delay = gs*(2-pf); for pf>1 this approaches 0 when Hann weight=0.
+    const float da = std::clamp(gs + (1.0f - pf) * pa + v.chaos_a_, 1.0f, max_d);
+    const float db = std::clamp(gs + (1.0f - pf) * pb + v.chaos_a_, 1.0f, max_d);
 
     out_l = ea * write_l_.read_h(da) + eb * write_l_.read_h(db);
     out_r = ea * write_r_.read_h(da) + eb * write_r_.read_h(db);
@@ -236,8 +257,8 @@ void PitchShifterProcessor::process_smooth(int vi, float& out_l, float& out_r)
     const float ea = 0.5f - 0.5f * std::cos(2.0f * kPi * pa / gs);
     const float eb = 0.5f - 0.5f * std::cos(2.0f * kPi * pb / gs);
 
-    const float da = std::clamp(pf * (gs - pa) + v.chaos_a_ + 1.0f, 1.0f, max_d);
-    const float db = std::clamp(pf * (gs - pb) + v.chaos_a_ + 1.0f, 1.0f, max_d);
+    const float da = std::clamp(gs + (1.0f - pf) * pa + v.chaos_a_, 1.0f, max_d);
+    const float db = std::clamp(gs + (1.0f - pf) * pb + v.chaos_a_, 1.0f, max_d);
 
     out_l = ea * write_l_.read_h(da) + eb * write_l_.read_h(db);
     out_r = ea * write_r_.read_h(da) + eb * write_r_.read_h(db);
@@ -285,6 +306,132 @@ void PitchShifterProcessor::process_tape(int vi, float& out_l, float& out_r)
     }
 }
 
+// ── Phase Vocoder helpers ─────────────────────────────────────────────────────
+
+// Minimal in-place radix-2 Cooley-Tukey FFT.
+// cx[] = interleaved float pairs (real, imag), length must be 2*N.
+void PitchShifterProcessor::mini_fft(float* cx, int N, bool inverse)
+{
+    for (int i = 1, j = 0; i < N; ++i) {
+        int bit = N >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) {
+            std::swap(cx[2*i],   cx[2*j]);
+            std::swap(cx[2*i+1], cx[2*j+1]);
+        }
+    }
+    for (int len = 2; len <= N; len <<= 1) {
+        const float ang = (inverse ? 1.0f : -1.0f) * 2.0f * kPi / float(len);
+        const float wR = std::cos(ang), wI = std::sin(ang);
+        for (int i = 0; i < N; i += len) {
+            float uR = 1.0f, uI = 0.0f;
+            for (int j = 0; j < len / 2; ++j) {
+                const int a = 2*(i+j), b = 2*(i+j+len/2);
+                const float tR = cx[b]*uR - cx[b+1]*uI;
+                const float tI = cx[b]*uI + cx[b+1]*uR;
+                cx[b]   = cx[a]   - tR;  cx[b+1] = cx[a+1] - tI;
+                cx[a]  += tR;             cx[a+1] += tI;
+                const float nR = uR*wR - uI*wI;
+                uI = uR*wI + uI*wR;  uR = nR;
+            }
+        }
+    }
+    if (inverse) { const float s = 1.0f / float(N); for (int i = 0; i < 2*N; ++i) cx[i] *= s; }
+}
+
+float PitchShifterProcessor::wrap_pi(float x)
+{
+    while (x >  kPi) x -= 2.0f * kPi;
+    while (x < -kPi) x += 2.0f * kPi;
+    return x;
+}
+
+// Process one STFT analysis→remap→synthesis frame for one channel.
+// Reads last kPvN samples from buf (write_l_ or write_r_).
+void PitchShifterProcessor::process_pv_chan(PvVoice& pv, PvChan& ch, bool is_left, float pf)
+{
+    Buf& buf = is_left ? write_l_ : write_r_;
+
+    // Extract Hann-windowed frame (oldest sample first)
+    for (int n = 0; n < kPvN; ++n) {
+        pv.work[2*n]   = buf.read(kPvN - n) * pv.window[n];
+        pv.work[2*n+1] = 0.0f;
+    }
+
+    mini_fft(pv.work, kPvN, false);
+
+    // Clear output accumulators
+    for (int k = 0; k < kPvBins; ++k) { pv.mag_out[k] = 0.0f; pv.freq_out[k] = 0.0f; }
+
+    // Analysis: compute instantaneous frequencies and remap bins
+    for (int k = 0; k < kPvBins; ++k) {
+        const float re    = pv.work[2*k],   im = pv.work[2*k+1];
+        const float mag   = std::sqrt(re*re + im*im);
+        const float phase = std::atan2(im, re);
+
+        // Phase difference minus expected advance for bin k over kPvHop samples
+        const float expected = 2.0f * kPi * float(k) * float(kPvHop) / float(kPvN);
+        const float dp       = wrap_pi(phase - ch.last_phase[k] - expected);
+        ch.last_phase[k] = phase;
+
+        // True frequency expressed in fractional bins
+        const float f_bins = float(k) + dp * float(kPvN) / (2.0f * kPi * float(kPvHop));
+
+        // Pitch-shifted output bin
+        const int k_out = int(float(k) * pf + 0.5f);
+        if (k_out >= 0 && k_out < kPvBins && mag > pv.mag_out[k_out]) {
+            pv.mag_out [k_out] = mag;
+            pv.freq_out[k_out] = f_bins * pf;  // scale true freq by pitch ratio
+        }
+    }
+
+    // Synthesis: accumulate output phases and rebuild complex spectrum
+    for (int n = 0; n < kPvN * 2; ++n) pv.work[n] = 0.0f;
+    for (int k = 0; k < kPvBins; ++k) {
+        ch.synth_phase[k] += pv.freq_out[k] * 2.0f * kPi * float(kPvHop) / float(kPvN);
+        pv.work[2*k]   = pv.mag_out[k] * std::cos(ch.synth_phase[k]);
+        pv.work[2*k+1] = pv.mag_out[k] * std::sin(ch.synth_phase[k]);
+    }
+    // Mirror for Hermitian symmetry so IFFT produces real output
+    for (int k = 1; k < kPvN / 2; ++k) {
+        pv.work[2*(kPvN-k)]   =  pv.work[2*k];
+        pv.work[2*(kPvN-k)+1] = -pv.work[2*k+1];
+    }
+
+    mini_fft(pv.work, kPvN, true);
+
+    // Hann-windowed overlap-add into circular output buffer
+    const int mask = kPvN * 2 - 1;
+    for (int n = 0; n < kPvN; ++n)
+        ch.out_buf[(ch.out_write + n) & mask] += pv.work[2*n] * pv.window[n];
+
+    ch.out_write = (ch.out_write + kPvHop) & mask;
+}
+
+void PitchShifterProcessor::process_pv(int vi, float& out_l, float& out_r)
+{
+    PvVoice& pv = pv_voices_[vi];
+    const float pf = voices_[vi].pitch_factor_;
+
+    // Trigger an analysis frame every kPvHop input samples
+    if (++pv.fill >= kPvHop) {
+        pv.fill = 0;
+        process_pv_chan(pv, pv.L, true,  pf);
+        process_pv_chan(pv, pv.R, false, pf);
+    }
+
+    // Read one sample from each channel's overlap-add ring, then clear the slot
+    const int mask = kPvN * 2 - 1;
+    out_l = pv.L.out_buf[pv.L.out_read] / kPvNorm;
+    pv.L.out_buf[pv.L.out_read] = 0.0f;
+    pv.L.out_read = (pv.L.out_read + 1) & mask;
+
+    out_r = pv.R.out_buf[pv.R.out_read] / kPvNorm;
+    pv.R.out_buf[pv.R.out_read] = 0.0f;
+    pv.R.out_read = (pv.R.out_read + 1) & mask;
+}
+
 // ── process ───────────────────────────────────────────────────────────────────
 
 void PitchShifterProcessor::process(float* left, float* right, int num_samples)
@@ -301,9 +448,10 @@ void PitchShifterProcessor::process(float* left, float* right, int num_samples)
             if (voice_gains_[vi] < 0.001f) continue;
             float vl = 0.0f, vr = 0.0f;
             switch (algorithm_) {
-                case PitchShifterAlgorithm::Granular: process_granular(vi, vl, vr); break;
-                case PitchShifterAlgorithm::Smooth:   process_smooth  (vi, vl, vr); break;
-                case PitchShifterAlgorithm::Tape:     process_tape    (vi, vl, vr); break;
+                case PitchShifterAlgorithm::Granular:     process_granular (vi, vl, vr); break;
+                case PitchShifterAlgorithm::Smooth:       process_smooth   (vi, vl, vr); break;
+                case PitchShifterAlgorithm::Tape:         process_tape     (vi, vl, vr); break;
+                case PitchShifterAlgorithm::PhaseVocoder: process_pv       (vi, vl, vr); break;
                 default: break;
             }
             sum_l       += voice_gains_[vi] * vl;

@@ -31,7 +31,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout PitchShifterPlugin::make_par
 
     params.push_back(std::make_unique<AudioParameterChoice>(
         ParameterID{kParamAlgo, 1}, "Algorithm",
-        StringArray{"Granular", "Smooth", "Tape"}, 0));
+        StringArray{"Granular", "Smooth", "Tape", "Phase Vocoder"}, 0));
 
     // Per-voice pitch (semitones, integer steps)
     for (auto [id, name] : { std::pair{kParamPitch1,"Pitch 1"}, {kParamPitch2,"Pitch 2"}, {kParamPitch3,"Pitch 3"} })

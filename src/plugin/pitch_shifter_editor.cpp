@@ -21,9 +21,10 @@ PitchShifterEditor::PitchShifterEditor(PitchShifterPlugin& plugin)
     auto& apvts = plugin_.get_apvts();
 
     // ── Algorithm selector ─────────────────────────────────────────────────────
-    algo_box_.addItem("Granular", 1);
-    algo_box_.addItem("Smooth",   2);
-    algo_box_.addItem("Tape",     3);
+    algo_box_.addItem("Granular",     1);
+    algo_box_.addItem("Smooth",       2);
+    algo_box_.addItem("Tape",         3);
+    algo_box_.addItem("Phase Vocoder",4);
     algo_box_.setScrollWheelEnabled(false);
     addAndMakeVisible(algo_box_);
     algo_attach_ = std::make_unique<AudioProcessorValueTreeState::ComboBoxAttachment>(
@@ -179,7 +180,7 @@ void PitchShifterEditor::resized()
     algo_label_.setBounds(kPadX + kAlgoW + 10, kAlgoY,
                           w - kPadX - kAlgoW - 20, kAlgoH);
 
-    // Row 1: GAIN (centred over each voice's 2 slots) + MIX + OUTPUT
+    // Row 1: GAIN (centred over each voice's 2 slots) + OUTPUT + MIX
     auto place1 = [&](Slider& k, Label& l, float slot) {
         const int x = cx(slot);
         k.setBounds(x - kKnobSize / 2, kKnobY1, kKnobSize, kKnobSize);
@@ -187,8 +188,8 @@ void PitchShifterEditor::resized()
     };
     for (int vi = 0; vi < 3; ++vi)
         place1(gain_knob_[vi], gain_label_[vi], static_cast<float>(vi * 2) + 0.5f);
-    place1(mix_knob_,    mix_label_,    6.0f);
-    place1(output_knob_, output_label_, 7.0f);
+    place1(output_knob_, output_label_, 6.0f);
+    place1(mix_knob_,    mix_label_,    7.0f);
 
     // Row 2: MOD 1 (even slots), MOD 2 (odd slots) per voice
     auto place2 = [&](Slider& k, Label& l, int slot) {
@@ -351,10 +352,36 @@ void PitchShifterEditor::update_algo_ui()
             "Tape: amplitude of the speed variation. 0 = no flutter (default); 0.5 = +-8\n"
             "samples (~2 cents at 1 kHz); 1.0 = +-16 samples (~4 cents at 1 kHz)."
         },
+        {   // Phase Vocoder
+            "Phase Vocoder -- STFT bin remapping. Smooth on sustained tones; phasey on transients.",
+            "PHASE VOCODER PITCH SHIFTER\n"
+            "\n"
+            "Sound: Analyzes the input with a 1024-point STFT (75% overlap, Hann window), shifts\n"
+            "frequency bins by the pitch ratio, then resynthesizes. Produces the smoothest possible\n"
+            "pitch shift on sustained tones and chords -- no grain boundaries, no flanging. The\n"
+            "characteristic artifact is 'phasiness': transients (attacks, consonants) smear and\n"
+            "lose clarity because the STFT window averages over 23 ms of audio. MOD 1 and MOD 2\n"
+            "are inactive for this algorithm. Best for: harmony on sustained pads, strings,\n"
+            "vocals held on vowels, and large creative shifts (>+/-4 semitones).\n"
+            "\n"
+            "Signal flow (per active voice):\n"
+            "  Every kHop=256 samples:\n"
+            "    X[k] = STFT(windowed input, N=1024)      analysis frame\n"
+            "    f_true[k] = k/N + wrap(angle(X[k]) - last_phase[k] - 2*pi*k*H/N) * N/(2*pi*H)\n"
+            "    X_out[round(k*pf)] = max(mag, X[k])     remap bins by pitch factor\n"
+            "    synth_phase[k] += f_true_out[k] * 2*pi*H/N\n"
+            "    y_frame = ISTFT(X_out, synth_phase)      synthesis frame\n"
+            "  Output = overlap-add of y_frame every H samples, normalised by 1.5 (COLA)\n"
+            "\n"
+            "Latency: N - H = 768 samples (~17 ms at 44.1 kHz).\n"
+            "Knob symbols: p=PITCH  d=DETUNE  g=GAIN  w=MIX  (MOD 1 and MOD 2 inactive)",
+            "Mod 1: inactive for Phase Vocoder mode.",
+            "Mod 2: inactive for Phase Vocoder mode."
+        },
     };
 
     const int idx = algo_box_.getSelectedItemIndex();
-    if (idx < 0 || idx >= 3) return;
+    if (idx < 0 || idx >= 4) return;
 
     algo_label_.setText(kInfo[idx].desc, dontSendNotification);
     algo_label_.setTooltip(kInfo[idx].tip);
