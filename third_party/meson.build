@@ -60,3 +60,19 @@ juce_dep = declare_dependency(
 vst3_client_src = files([
     'JUCE/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST3.cpp',
 ])
+
+# ── CLAP plugin client ─────────────────────────────────────────────────────────
+# clap-juce-extensions wraps any JUCE AudioProcessor as a CLAP plugin.
+# The wrapper + extension .cpp files are compiled alongside plugin code (like the
+# VST3 client above). The CLAP headers live inside the clap-juce-extensions
+# submodule's own clap-libs/ subdirectory.
+clap_include_dirs = include_directories([
+    'clap-juce-extensions/clap-libs/clap/include',
+    'clap-juce-extensions/clap-libs/clap-helpers/include',
+    'clap-juce-extensions/include',
+])
+
+clap_client_srcs = files([
+    'clap-juce-extensions/src/extensions/clap-juce-extensions.cpp',
+    'clap-juce-extensions/src/wrapper/clap-juce-wrapper.cpp',
+])

@@ -1,14 +1,14 @@
 # kaos-engine
 
-A collection of VST3 audio effects plugins for algorithmic sound design. Each plugin is
-built around a focused set of controls, a minimal UI, and a selection of algorithms
+A collection of VST3 audio effects plugins and modulation controllers for algorithmic sound design.
+Each plugin is built around a focused set of controls, a minimal UI, and a selection of algorithms
 covering a wide range of sonic character.
 
 ---
 
 ## Table of Contents
 
-- [Plugins](#plugins)
+- [Effects](#effects)
   - [kaos-engine::distortion](#kaos-enginedistortion)
   - [kaos-engine::delay](#kaos-enginedelay)
   - [kaos-engine::reverb](#kaos-enginereverb)
@@ -16,6 +16,10 @@ covering a wide range of sonic character.
   - [kaos-engine::modulator](#kaos-enginemodulator)
   - [kaos-engine::frequency-shifter](#kaos-enginefrequency-shifter)
   - [kaos-engine::eq](#kaos-engineeq)
+  - [kaos-engine::compressor](#kaos-enginecompressor)
+  - [kaos-engine::gate](#kaos-enginegate)
+- [Controllers](#controllers)
+  - [kaos-engine::lfo](#kaos-enginelfo)
 - [Building](#building)
 - [Project layout](#project-layout)
 - [License](#license)
@@ -23,7 +27,11 @@ covering a wide range of sonic character.
 
 ---
 
-## Plugins
+## Effects
+
+Effects process audio — they modify, shape, or transform the sound passing through them.
+
+---
 
 ### kaos-engine::distortion
 
@@ -206,11 +214,11 @@ does not increase the overall output level.
 
 ### kaos-engine::modulator
 
-![kaos-engine::modulator](doc/images/modulator.png)
-
 An AM / tremolo / ring modulator with a shared carrier oscillator. All three modes use
 the same underlying multiply `y[n] = x[n] · m[n]`; the mode selector determines the
 form of the modulator signal. PHASE offsets the right-channel oscillator for stereo effects.
+
+![kaos-engine::modulator](doc/images/modulator.png)
 
 **Modes**
 
@@ -243,7 +251,7 @@ destroying harmonic ratios and creating metallic, bell-like inharmonic tones. An
 feedback delay loop places the shifter inside its own feedback path, enabling Risset
 endless glissandos and barberpole phasing effects.
 
-![kaos-engine::reverb](doc/images/frequency-shifter.png)
+![kaos-engine::frequency-shifter](doc/images/frequency-shifter.png)
 
 **Directions**
 
@@ -304,6 +312,141 @@ from the current parameter values and redraws on every knob change.
 
 ---
 
+### kaos-engine::compressor
+
+A stereo dynamics compressor with three circuit-modelled algorithms, a gain reduction
+meter, and parallel compression support via the MIX knob. The feed-forward level detector
+uses RMS averaging for a musical response across all modes.
+
+![kaos-engine::compressor](doc/images/compressor.png)
+
+**Algorithms**
+
+| Algorithm | Character |
+|---|---|
+| **VCA** | Feed-forward, program-independent. Clean and transparent with precise attack/release times. The all-purpose workhorse for mixing and mastering |
+| **Optical** | Level-dependent release — faster recovery from short peaks, slower from sustained compression. Musical and "invisible"; models the LA-2A-style optocoupler response |
+| **FET** | Feed-back topology with fast attack (down to 0.1 ms). Aggressive, coloured, and punchy. Models the 1176-style FET character — glues drums and buses |
+
+**Parameters**
+
+| Knob | Range | Description |
+|---|---|---|
+| Threshold | −60 to 0 dBFS | Level above which gain reduction begins |
+| Ratio | 1:1 to 20:1 | Compression ratio. 2:1–4:1 = gentle; 8:1+ = heavy limiting |
+| Knee | 0–20 dB | Soft-knee width. 0 = hard knee; wider = more gradual onset |
+| Attack | 0.1–1 000 ms | Time for gain reduction to reach target. Short = clamps transients; long = lets them through |
+| Release | 10–5 000 ms | Recovery time after signal drops below threshold |
+| Makeup | −20 to +20 dB | Post-compression gain to restore lost level |
+| Output | −20 to +6 dB | Final output trim |
+| Mix | 0–1 | Parallel compression blend: 0 = dry, 1 = fully compressed |
+
+---
+
+### kaos-engine::gate
+
+A noise gate / expander / ducker with a state machine (Attack → Hold → Release) and
+hysteresis to prevent chattering. Also outputs a **Gate CV** signal on an optional mono
+sidechain bus — a +1 V (open) / 0 V (closed) control signal compatible with kaos-engine::lfo's
+Sidechain trigger mode, so the LFO starts and stops in response to the gate state.
+
+![kaos-engine::gate](doc/images/gate.png)
+
+**Algorithms**
+
+| Algorithm | Character |
+|---|---|
+| **Gate** | Full attenuation below threshold. Binary open/close with RANGE setting the closed-state floor. Cleans up noise floor between phrases |
+| **Expander** | Proportional attenuation below threshold using RATIO. Gentler than gating — reduces noise by 10–20 dB rather than silencing it entirely |
+| **Ducker** | Attenuates when the signal *exceeds* threshold. Use on a backing track keyed to a lead signal — the backing ducks when the lead is active |
+
+**Parameters**
+
+| Knob | Range | Description |
+|---|---|---|
+| Threshold | −80 to 0 dBFS | Level at which the gate opens |
+| Range | −80 to −0.1 dB | Minimum gain when the gate is fully closed. −60 dB = near-silence; −6 dB = subtle ducking |
+| Ratio | 1:1 to 100:1 | Expansion ratio for Expander mode. Higher = steeper attenuation below threshold |
+| Attack | 0.1–500 ms | Time for the gate to open fully after the signal crosses threshold |
+| Hold | 0–2 000 ms | Minimum time the gate stays open after signal drops below threshold — prevents flutter on decaying notes |
+| Release | 10–5 000 ms | Time for the gate to close fully after the hold expires |
+| Hysteresis | 0–20 dB | Band below threshold where the gate remains open once triggered, preventing chattering on signals hovering near the threshold |
+| Output | −20 to +6 dB | Output trim |
+| Mix | 0–1 | Dry/wet blend |
+
+**Gate CV output:** When the optional Gate CV bus is enabled in the host, a mono CV signal
+is written each block: `+1.0` when the gate is open or in hold, `0.0` when closed. Connect
+this bus to kaos-engine::lfo's Trigger In sidechain input to make the LFO retrigger whenever
+the gate opens.
+
+---
+
+## Controllers
+
+Controllers generate modulation signals rather than transforming audio. Their output is
+routed to plugin parameters or other controllers — not heard directly.
+
+---
+
+### kaos-engine::lfo
+
+A low-frequency oscillator with 11 waveforms, a SHAPE modifier, and three output paths:
+**MIDI CC** (parameter automation in any DAW), **Audio CV** (a mono sidechain bus carrying
+the LFO signal as a −1..+1 control voltage), and both simultaneously. Passes stereo audio
+through unmodified. Four trigger modes control when the oscillator runs and resets.
+
+![kaos-engine::lfo](doc/images/lfo.png)
+
+**Waveforms**
+
+| Waveform | Character | SHAPE effect |
+|---|---|---|
+| **Sine** | Smooth, no harmonics. Default for tremolo and vibrato | No effect |
+| **Triangle** | Linear ramp up/down, odd harmonics, softer than square | No effect |
+| **Square** | Hard toggle between ±1 — rhythmic gating and hard tremolo | No effect (use Pulse for variable duty) |
+| **Sawtooth** | Rising ramp — classic analogue-style filter sweep | No effect |
+| **Rev. Saw** | Falling ramp — closing filter sweep | No effect |
+| **Half Sine** | abs(sin) — two bumps per cycle, always ≥ 0. Bouncing-ball feel | No effect |
+| **Exp Ramp** | Rises −1→+1 slowly then accelerates. Capacitor charge curve | Curve steepness (0 = near-linear, 1 = very steep) |
+| **Log Ramp** | Rises −1→+1 quickly then levels off. Capacitor discharge curve | Curve steepness (0 = near-linear, 1 = very steep) |
+| **Pulse** | Square with variable duty cycle. Narrow spikes to wide pulses | Duty cycle (0 = narrow, 0.5 = square, 1 = wide) |
+| **Staircase Up** | Sawtooth quantised to discrete steps, rising −1→+1 | Step count (0 = 2 steps, 1 = 16 steps) |
+| **Staircase Down** | Mirror of Staircase Up, falling +1→−1 | Step count (0 = 2 steps, 1 = 16 steps) |
+
+**Parameters**
+
+| Knob | Range | Description |
+|---|---|---|
+| Rate | 0.01–100 Hz | LFO frequency when Tempo Sync is off |
+| Depth | 0–1 | Amplitude scale applied to the raw waveform. `out = waveform * depth + offset` |
+| Shape | 0–1 | Waveform-specific modifier; see table above. No effect on most waveforms |
+| Phase | 0–1 | Starting phase offset. 0.5 = begin 180° into the cycle |
+| Offset | −1 to +1 | DC shift added after depth scaling. Offset +0.5 with Depth 0.5 → unipolar 0..+1 |
+| CC Num | 0–127 | MIDI CC number (active in MIDI CC mode) |
+| CC Ch | 1–16 | MIDI channel for CC messages |
+
+**Trigger modes**
+
+| Mode | Behaviour |
+|---|---|
+| **Free** | LFO runs continuously from startup. No external trigger needed |
+| **Note Retrigger** | MIDI note-on resets phase to zero and starts the LFO; note-off holds the current value |
+| **Transport** | DAW play resets and starts; DAW stop holds the current value |
+| **Sidechain** | Rising edge on Trigger In bus (> 0.6) resets and starts; falling edge (< 0.4) holds. Connect kaos-engine::gate's Gate CV output here |
+
+**Controls**
+
+| Control | Options | Description |
+|---|---|---|
+| Sync | Free / Sync | When Sync, rate is locked to host BPM and the Phase is aligned to the DAW transport position |
+| Division | Whole / Half / Dotted 1/4 / 1/4 / Dotted 1/8 / 1/8 / 1/8 Triplet / 1/16 | Beat subdivision for tempo-synced mode |
+| Output Mode | MIDI CC / Audio CV / MIDI CC + CV | Which output path(s) are active |
+
+**Plugin formats:** builds as **VST3** and **CLAP**. The CLAP build (`kaos-engine-lfo.clap`)
+enables native parameter modulation routing in Bitwig Studio, Reaper, and FL Studio 2024+.
+
+---
+
 ## Building
 
 Requires [Meson](https://mesonbuild.com/) >= 1.1 and a C++17 compiler.
@@ -314,7 +457,12 @@ meson compile -C build
 ```
 
 Targets: **Windows** (x86_64, MinGW-w64) and **Linux** (x86_64).
-Output format: **VST3** (plus standalone executables for testing).
+Output formats: **VST3** (all plugins) and **CLAP** (kaos-engine::lfo).
+
+**CLAP note:** The `kaos-engine-lfo.clap` file is a shared library with the `.clap`
+extension. Load it in any CLAP-aware host (Bitwig, Reaper, FL Studio 2024+) the same
+way you would a VST3 — point the host's plugin scanner at the build output directory.
+No runtime toggle is required: the format is determined by which file the host loads.
 
 ---
 
@@ -331,9 +479,15 @@ kaos-engine/
 │   │   ├── pitch_shifter/   # granular pitch shifting DSP (3 voices, 3 algorithms)
 │   │   ├── modulator/       # AM / tremolo / ring mod DSP
 │   │   ├── frequency_shifter/ # SSB Hilbert frequency shifter DSP
-│   │   └── eq/              # 5-band parametric EQ DSP (RBJ biquads)
+│   │   ├── eq/              # 5-band parametric EQ DSP (RBJ biquads)
+│   │   ├── compressor/      # dynamics compressor DSP (VCA / Optical / FET)
+│   │   └── gate/            # noise gate / expander / ducker DSP
+│   ├── framework/
+│   │   └── lfo/             # LFO controller DSP (no JUCE dependency)
 │   ├── plugin/              # JUCE AudioProcessor wrappers + editors + shared LookAndFeel
 │   └── standalone/          # standalone app build targets
+├── doc/
+│   └── images/              # plugin screenshots referenced in this README
 ├── third_party/             # JUCE 7 (git submodule)
 └── build/                   # generated by meson (not committed)
 ```
@@ -357,9 +511,11 @@ Acronyms and abbreviations used across the plugins, UI labels, and documentation
 | **AM** | Amplitude Modulation | Multiplying a signal by a carrier to produce sidebands at f_in ± f_carrier. When the carrier includes a DC bias the original signal is preserved alongside the sidebands. |
 | **AP** | Allpass (filter) | A filter with a flat magnitude response that shifts phase. Used for diffusion in reverbs and as a fractional-delay interpolator. An AP section: `y[n] = −a·x[n] + x[n−1] + a·y[n−1]`. |
 | **BBD** | Bucket-Brigade Device | An analog delay line built from a chain of capacitors that pass charge from stage to stage at a clock rate. Emulated here via a shift-register buffer with a low-pass output filter. |
+| **CLAP** | CLever Audio Plugin | Open plugin API developed by u-he and Bitwig (2022). Defines sample-accurate parameter modulation, per-note expression (MPE-style), and a standardised parameter modulation routing API between plugins. kaos-engine::lfo builds as `.clap` in addition to VST3. Supported by Bitwig Studio, Reaper, and FL Studio 2024+. |
 | **BP** | Band-Pass (filter) | A filter that passes a band of frequencies centred on the cutoff and attenuates both below and above it. |
 | **BPM** | Beats Per Minute | Tempo unit. Used to sync delay times to a musical grid: `quarter_note_ms = 60 000 / BPM`. |
 | **CPU** | Central Processing Unit | General compute load. Used informally to mean DSP processing cost per sample block. |
+| **CV** | Control Voltage | In analog synthesis, a voltage signal (typically 0–5 V or ±5 V) used to modulate parameters rather than carry audio. In kaos-engine, Audio CV refers to a modulation signal on a dedicated mono sidechain bus, where sample values in the range −1..+1 carry the control signal. The gate outputs a unipolar 0/+1 gate signal; the LFO outputs a bipolar −1..+1 waveform. DAWs that support sidechain routing (Bitwig, Reaper) can connect these buses to plugin parameters or other controllers. |
 | **ct** | Cent | One hundredth of a semitone. Used for fine pitch offsets: 100 ct = 1 st. |
 | **dB** | Decibel | Logarithmic unit of level. +6 dB ≈ double amplitude; −6 dB ≈ half amplitude. |
 | **DC** | Direct Current (offset) | A non-zero mean value in an audio signal. Asymmetric waveshapers and rectifiers introduce DC; removed with a DC-blocking IIR filter: `y[n] = x[n] − x[n−1] + R·y[n−1]`, R ≈ 0.995. |
@@ -373,12 +529,14 @@ Acronyms and abbreviations used across the plugins, UI labels, and documentation
 | **IR** | Impulse Response | The output of a system when fed a single unit impulse. Fully characterises a linear time-invariant system; used in convolution reverb. |
 | **JAES** | Journal of the Audio Engineering Society | Peer-reviewed publication. The Dattorro plate reverb algorithm originates from a 1997 JAES paper. |
 | **JUCE** | Jules' Utility Class Extensions | Open-source C++ framework for building audio plugins and applications. Provides the VST3 wrapper, GUI components, and audio I/O used by kaos-engine. |
-| **LFO** | Low-Frequency Oscillator | An oscillator running at sub-audio rates (typically 0.05–20 Hz) used to modulate parameters over time (tremolo, vibrato, wow/flutter). |
+| **LFO** | Low-Frequency Oscillator | An oscillator running at sub-audio rates (typically 0.05–20 Hz) used to modulate parameters over time (tremolo, vibrato, wow/flutter). In kaos-engine the LFO is a standalone controller plugin that routes its output via MIDI CC or Audio CV to other plugins. |
 | **LP** | Low-Pass (filter) | A filter that passes frequencies below the cutoff and attenuates those above it. Used for tone shaping and as a damping filter in delay/reverb feedback paths. |
+| **MIDI** | Musical Instrument Digital Interface | A serial communication protocol (1983) for transmitting musical events between devices and software. MIDI CC (Continuous Controller) messages carry 7-bit values (0–127) on a numbered channel (1–16) and can be mapped to plugin parameters in most DAWs. kaos-engine::lfo outputs MIDI CC messages from its `processBlock` when set to MIDI CC or MIDI CC + CV mode. |
 | **ms** | Milliseconds | One thousandth of a second. Standard unit for delay times and reverb pre-delay. |
 | **OLA** | Overlap-Add | A time-domain technique for time-stretching and pitch-shifting. Successive windowed frames of the input are written at a different hop size to stretch or compress time; resampling then corrects pitch. |
 | **Q** | Quality factor | Dimensionless measure of filter resonance. Q = f_centre / bandwidth. Q = 0.707 gives a maximally flat (Butterworth) response; higher Q produces a sharper resonant peak. |
 | **RT60** | Reverberation Time (60 dB) | The time for a room's sound energy to decay by 60 dB after a source stops. A standard measure of perceived reverb length. |
+| **SSB** | Single-Sideband | A modulation method that produces only one sideband (upper or lower) rather than both. In kaos-engine::frequency-shifter, SSB is achieved via the phasing method: the Hilbert transform path cancels the unwanted sideband. |
 | **st** | Semitone | One twelfth of an octave. A frequency ratio of 2^(1/12) ≈ 1.0595. |
 | **SVF** | State Variable Filter | A two-integrator-loop filter topology (Simper variant used here) that simultaneously outputs LP, HP, and BP responses from the same state, making it easy to switch type without discontinuity. |
 | **VST3** | Virtual Studio Technology 3 | Plugin format developed by Steinberg. The standard format for audio effects and instruments on Windows and Linux. kaos-engine builds each effect as a `.vst3` bundle. |

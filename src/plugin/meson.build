@@ -476,3 +476,255 @@ custom_target('kaos-engine-eq-vst3-bundle',
     ],
     build_by_default: true,
 )
+
+# ── Compressor VST3 ───────────────────────────────────────────────────────────
+comp_plugin_defines = [
+    '-DJucePlugin_Build_VST3=1',
+    '-DJucePlugin_Build_VST=0',
+    '-DJucePlugin_Build_AU=0',
+    '-DJucePlugin_Build_AUv3=0',
+    '-DJucePlugin_Build_AAX=0',
+    '-DJucePlugin_Build_Standalone=0',
+    '-DJucePlugin_Build_LV2=0',
+    '-DJucePlugin_Build_Unity=0',
+    '-DJucePlugin_Name="kaos-engine::compressor"',
+    '-DJucePlugin_Manufacturer="kaos-engine"',
+    '-DJucePlugin_ManufacturerWebsite=""',
+    '-DJucePlugin_ManufacturerEmail=""',
+    '-DJucePlugin_ManufacturerCode=0x4e75456e',
+    '-DJucePlugin_PluginCode=0x4e65436f',
+    '-DJucePlugin_IsSynth=0',
+    '-DJucePlugin_WantsMidiInput=0',
+    '-DJucePlugin_ProducesMidiOutput=0',
+    '-DJucePlugin_IsMidiEffect=0',
+    '-DJucePlugin_EditorRequiresKeyboardFocus=0',
+    '-DJucePlugin_Version=0x010000',
+    '-DJucePlugin_VersionString="1.0.0"',
+    '-DJucePlugin_VersionCode=0x010000',
+    '-DJucePlugin_Vst3Category="Fx|Dynamics"',
+    '-DJUCE_VST3_CAN_REPLACE_VST2=0',
+    '-DJucePlugin_VSTUniqueID=JucePlugin_PluginCode',
+]
+
+comp_plugin_inc = include_directories(['.', '../effects/compressor'])
+
+comp_plugin_srcs = files([
+    'compressor_plugin.cpp',
+    'compressor_editor.cpp',
+    'look_and_feel.cpp',
+])
+
+comp_all_srcs = comp_plugin_srcs + compressor_srcs + vst3_client_src
+
+comp_vst3_lib = shared_library('kaos-engine-compressor-vst3',
+    name_prefix: '',
+    sources: comp_all_srcs,
+    include_directories: [comp_plugin_inc, juce_include_dirs],
+    cpp_args: build_flags_cpp + build_flags + comp_plugin_defines + [
+        '-Wno-deprecated-declarations', '-Wno-non-virtual-dtor', '-Wno-sign-compare',
+    ],
+    link_args: plugin_link_flags,
+    link_with: lib_juce,
+    dependencies: system_deps,
+    install: false,
+)
+
+comp_vst3_bundle_contents = meson.current_build_dir() / 'kaos-engine-compressor.vst3' / 'Contents' / vst3_arch
+
+custom_target('kaos-engine-compressor-vst3-bundle',
+    output: 'kaos-engine-compressor.vst3',
+    input: comp_vst3_lib,
+    command: [
+        'bash', '-c',
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-compressor@1@"'.format(
+            comp_vst3_bundle_contents, lib_suffix),
+    ],
+    build_by_default: true,
+)
+
+# ── Gate VST3 ─────────────────────────────────────────────────────────────────
+gate_plugin_defines = [
+    '-DJucePlugin_Build_VST3=1',
+    '-DJucePlugin_Build_VST=0',
+    '-DJucePlugin_Build_AU=0',
+    '-DJucePlugin_Build_AUv3=0',
+    '-DJucePlugin_Build_AAX=0',
+    '-DJucePlugin_Build_Standalone=0',
+    '-DJucePlugin_Build_LV2=0',
+    '-DJucePlugin_Build_Unity=0',
+    '-DJucePlugin_Name="kaos-engine::gate"',
+    '-DJucePlugin_Manufacturer="kaos-engine"',
+    '-DJucePlugin_ManufacturerWebsite=""',
+    '-DJucePlugin_ManufacturerEmail=""',
+    '-DJucePlugin_ManufacturerCode=0x4e75456e',
+    '-DJucePlugin_PluginCode=0x4e654774',
+    '-DJucePlugin_IsSynth=0',
+    '-DJucePlugin_WantsMidiInput=0',
+    '-DJucePlugin_ProducesMidiOutput=0',
+    '-DJucePlugin_IsMidiEffect=0',
+    '-DJucePlugin_EditorRequiresKeyboardFocus=0',
+    '-DJucePlugin_Version=0x010000',
+    '-DJucePlugin_VersionString="1.0.0"',
+    '-DJucePlugin_VersionCode=0x010000',
+    '-DJucePlugin_Vst3Category="Fx|Dynamics"',
+    '-DJUCE_VST3_CAN_REPLACE_VST2=0',
+    '-DJucePlugin_VSTUniqueID=JucePlugin_PluginCode',
+]
+
+gate_plugin_inc = include_directories(['.', '../effects/gate'])
+
+gate_plugin_srcs = files([
+    'gate_plugin.cpp',
+    'gate_editor.cpp',
+    'look_and_feel.cpp',
+])
+
+gate_all_srcs = gate_plugin_srcs + gate_srcs + vst3_client_src
+
+gate_vst3_lib = shared_library('kaos-engine-gate-vst3',
+    name_prefix: '',
+    sources: gate_all_srcs,
+    include_directories: [gate_plugin_inc, juce_include_dirs],
+    cpp_args: build_flags_cpp + build_flags + gate_plugin_defines + [
+        '-Wno-deprecated-declarations', '-Wno-non-virtual-dtor', '-Wno-sign-compare',
+    ],
+    link_args: plugin_link_flags,
+    link_with: lib_juce,
+    dependencies: system_deps,
+    install: false,
+)
+
+gate_vst3_bundle_contents = meson.current_build_dir() / 'kaos-engine-gate.vst3' / 'Contents' / vst3_arch
+
+custom_target('kaos-engine-gate-vst3-bundle',
+    output: 'kaos-engine-gate.vst3',
+    input: gate_vst3_lib,
+    command: [
+        'bash', '-c',
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-gate@1@"'.format(
+            gate_vst3_bundle_contents, lib_suffix),
+    ],
+    build_by_default: true,
+)
+
+# ── LFO VST3 ──────────────────────────────────────────────────────────────────
+lfo_plugin_defines = [
+    '-DJucePlugin_Build_VST3=1',
+    '-DJucePlugin_Build_VST=0',
+    '-DJucePlugin_Build_AU=0',
+    '-DJucePlugin_Build_AUv3=0',
+    '-DJucePlugin_Build_AAX=0',
+    '-DJucePlugin_Build_Standalone=0',
+    '-DJucePlugin_Build_LV2=0',
+    '-DJucePlugin_Build_Unity=0',
+    '-DJucePlugin_Name="kaos-engine::lfo"',
+    '-DJucePlugin_Desc="LFO modulator with MIDI CC and Audio CV outputs"',
+    '-DJucePlugin_Manufacturer="kaos-engine"',
+    '-DJucePlugin_ManufacturerWebsite=""',
+    '-DJucePlugin_ManufacturerEmail=""',
+    '-DJucePlugin_ManufacturerCode=0x4e75456e',
+    '-DJucePlugin_PluginCode=0x4e654c66',
+    '-DJucePlugin_IsSynth=0',
+    '-DJucePlugin_WantsMidiInput=1',
+    '-DJucePlugin_ProducesMidiOutput=1',
+    '-DJucePlugin_IsMidiEffect=0',
+    '-DJucePlugin_EditorRequiresKeyboardFocus=0',
+    '-DJucePlugin_Version=0x010000',
+    '-DJucePlugin_VersionString="1.0.0"',
+    '-DJucePlugin_VersionCode=0x010000',
+    '-DJucePlugin_Vst3Category="Fx|Tools"',
+    '-DJUCE_VST3_CAN_REPLACE_VST2=0',
+    '-DJucePlugin_VSTUniqueID=JucePlugin_PluginCode',
+]
+
+lfo_plugin_inc = include_directories(['.', '../effects', '../framework/lfo'])
+
+lfo_plugin_srcs = files([
+    'lfo_plugin.cpp',
+    'lfo_editor.cpp',
+    'look_and_feel.cpp',
+])
+
+lfo_all_srcs = lfo_plugin_srcs + lfo_srcs + vst3_client_src
+
+lfo_vst3_lib = shared_library('kaos-engine-lfo-vst3',
+    name_prefix: '',
+    sources: lfo_all_srcs,
+    include_directories: [lfo_plugin_inc, juce_include_dirs],
+    cpp_args: build_flags_cpp + build_flags + lfo_plugin_defines + [
+        '-Wno-deprecated-declarations', '-Wno-non-virtual-dtor', '-Wno-sign-compare',
+    ],
+    link_args: plugin_link_flags,
+    link_with: lib_juce,
+    dependencies: system_deps,
+    install: false,
+)
+
+lfo_vst3_bundle_contents = meson.current_build_dir() / 'kaos-engine-lfo.vst3' / 'Contents' / vst3_arch
+
+custom_target('kaos-engine-lfo-vst3-bundle',
+    output: 'kaos-engine-lfo.vst3',
+    input: lfo_vst3_lib,
+    command: [
+        'bash', '-c',
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-lfo@1@"'.format(
+            lfo_vst3_bundle_contents, lib_suffix),
+    ],
+    build_by_default: true,
+)
+
+# ── LFO CLAP ──────────────────────────────────────────────────────────────────
+# Same plugin code compiled against the clap-juce-extensions wrapper instead of
+# the VST3 client.  The output is a .clap shared library (DLL renamed on Windows).
+lfo_clap_defines = [
+    '-DJucePlugin_Build_VST3=0',
+    '-DJucePlugin_Build_VST=0',
+    '-DJucePlugin_Build_AU=0',
+    '-DJucePlugin_Build_AUv3=0',
+    '-DJucePlugin_Build_AAX=0',
+    '-DJucePlugin_Build_Standalone=0',
+    '-DJucePlugin_Build_LV2=0',
+    '-DJucePlugin_Build_Unity=0',
+    '-DJucePlugin_Name="kaos-engine::lfo"',
+    '-DJucePlugin_Desc="LFO modulator with MIDI CC and Audio CV outputs"',
+    '-DJucePlugin_Manufacturer="kaos-engine"',
+    '-DJucePlugin_ManufacturerWebsite=""',
+    '-DJucePlugin_ManufacturerEmail=""',
+    '-DJucePlugin_ManufacturerCode=0x4e75456e',
+    '-DJucePlugin_PluginCode=0x4e654c66',
+    '-DJucePlugin_IsSynth=0',
+    '-DJucePlugin_WantsMidiInput=1',
+    '-DJucePlugin_ProducesMidiOutput=1',
+    '-DJucePlugin_IsMidiEffect=0',
+    '-DJucePlugin_EditorRequiresKeyboardFocus=0',
+    '-DJucePlugin_Version=0x010000',
+    '-DJucePlugin_VersionString="1.0.0"',
+    '-DJucePlugin_VersionCode=0x010000',
+    '-DJucePlugin_Vst3Category="Fx|Tools"',
+    '-DJUCE_VST3_CAN_REPLACE_VST2=0',
+    '-DJucePlugin_VSTUniqueID=JucePlugin_PluginCode',
+    '-DCLAP_ID="org.kaos-engine.lfo"',
+    '-DCLAP_FEATURES="utility","modulator"',
+    '-DCLAP_PROCESS_EVENTS_RESOLUTION_SAMPLES=64',
+    '-DCLAP_MISBEHAVIOUR_HANDLER_LEVEL=Ignore',
+    '-DCLAP_CHECKING_LEVEL=Minimal',
+    '-DCLAP_MANUAL_URL=""',
+    '-DCLAP_SUPPORT_URL=""',
+    '-DJUCE_MODULE_AVAILABLE_juce_audio_utils=1',
+    '-DJUCE_MODULE_AVAILABLE_juce_audio_devices=1',
+]
+
+lfo_clap_lib = shared_library('kaos-engine-lfo',
+    name_prefix: '',
+    name_suffix: 'clap',
+    sources: lfo_plugin_srcs + lfo_srcs + clap_client_srcs,
+    include_directories: [lfo_plugin_inc, juce_include_dirs, clap_include_dirs],
+    cpp_args: build_flags_cpp + build_flags + lfo_clap_defines + [
+        '-Wno-deprecated-declarations', '-Wno-non-virtual-dtor', '-Wno-sign-compare',
+        '-Wno-unused-parameter',
+    ],
+    link_args: plugin_link_flags,
+    link_with: lib_juce,
+    dependencies: system_deps,
+    install: false,
+)
