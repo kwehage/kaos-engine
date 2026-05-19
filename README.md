@@ -19,6 +19,7 @@ covering a wide range of sonic character.
   - [kaos-engine::eq](#kaos-engineeq)
   - [kaos-engine::compressor](#kaos-enginecompressor)
   - [kaos-engine::gate](#kaos-enginegate)
+  - [kaos-engine::noise](#kaos-enginenoise)
 - [Controllers](#controllers)
   - [kaos-engine::lfo](#kaos-enginelfo)
   - [kaos-engine::stochastic](#kaos-enginestochastic)
@@ -433,6 +434,51 @@ the gate opens.
 
 ---
 
+### kaos-engine::noise
+
+A stereo noise generator that adds noise to an input signal. Three operating modes control
+how the noise tracks the input, from constant injection to envelope-proportional modulation.
+Four noise types cover the full spectrum from clinical broadband hiss to organic granular
+texture. The MIX knob is a true dry/wet crossfade: fully left passes the input unmodified;
+fully right outputs only the noise with no dry signal.
+
+![kaos-engine::noise](doc/images/noise.png)
+
+**Noise types**
+
+| Type | Spectral character |
+|---|---|
+| **White** | Flat spectrum -- equal energy at all frequencies. Broadband hiss |
+| **Pink** | -3 dB/oct (1/f). More low-frequency energy. Warmer, natural sounding noise |
+| **Brown** | -6 dB/oct (1/f^2). Deep rumble and low roar. Brownian random walk |
+| **Granular** | Hann-windowed noise bursts spawned from a 16-voice grain pool. SIZE and DENSITY shape the texture from sparse pops to a dense cloud |
+
+**Modes**
+
+| Mode | Behaviour |
+|---|---|
+| **Follow** | Noise amplitude tracks the input signal's envelope proportionally. Louder input = louder noise. Below THRESHOLD the noise fades to zero via the RELEASE tail. This is the default mode |
+| **Gated** | Binary gate -- noise snaps fully on when the input crosses THRESHOLD and fades fully off when it drops below. ATTACK and RELEASE smooth the transitions |
+| **Always On** | Noise runs continuously at fixed amplitude regardless of input. THRESHOLD, ATTACK, and RELEASE are inactive |
+
+**Parameters**
+
+| Knob | Range | Description |
+|---|---|---|
+| Gain | 0--1 | Noise amplitude before mixing. Scales all four noise types equally |
+| Size | 5--500 ms | Granular mode only -- grain length. Longer grains = smoother texture; shorter = more percussive |
+| Density | 0--1 | Granular mode only -- average grain spawn rate. 0 = sparse isolated pops; 1 = dense overlapping cloud |
+| Threshold | -60 to 0 dBFS | Follow / Gated modes -- input level at which noise activates. Below this level noise decays toward silence via the RELEASE tail |
+| Attack | 0.1--500 ms | Follow / Gated modes -- time for noise to fade in after signal exceeds threshold |
+| Release | 1--5000 ms | Follow / Gated modes -- time for noise to trail off after signal drops below threshold. Long values give a slow, organic decay tail |
+| Mix | 0--1 | Dry/wet crossfade. 0 = input signal only; 1 = noise only (no dry signal) |
+| Output | -20 to +6 dB | Final output trim applied after the mix |
+
+SIZE and DENSITY are greyed out when not in Granular mode. THRESHOLD, ATTACK, and RELEASE
+are greyed out in Always On mode.
+
+---
+
 ## Controllers
 
 Controllers generate modulation signals rather than transforming audio. Their output is
@@ -626,7 +672,8 @@ kaos-engine/
 │   │   ├── filter/          # multi-mode filter DSP (SVF, biquad, comb, ladder)
 │   │   ├── eq/              # 5-band parametric EQ DSP (RBJ biquads)
 │   │   ├── compressor/      # dynamics compressor DSP (VCA / Optical / FET)
-│   │   └── gate/            # noise gate / expander / ducker DSP
+│   │   ├── gate/            # noise gate / expander / ducker DSP
+│   │   └── noise/           # noise generator DSP (White / Pink / Brown / Granular)
 │   ├── framework/
 │   │   ├── lfo/             # LFO controller DSP (no JUCE dependency)
 │   │   ├── stochastic/      # stochastic controller DSP (6 modes inc. Lorenz attractor)

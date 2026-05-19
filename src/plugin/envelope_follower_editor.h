@@ -54,7 +54,7 @@ private:
 
     // ── Layout ────────────────────────────────────────────────────────────────
     static constexpr int kWidth      = 600;
-    static constexpr int kHeight     = 300;
+    static constexpr int kHeight     = 325;
     static constexpr int kComboY     = 6;
     static constexpr int kComboH     = 20;
     static constexpr int kComboW     = 90;
