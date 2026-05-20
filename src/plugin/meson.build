@@ -974,6 +974,136 @@ custom_target('kaos-engine-noise-vst3-bundle',
     build_by_default: true,
 )
 
+# ── Spectrogram VST3 ──────────────────────────────────────────────────────────
+spectrogram_plugin_defines = [
+    '-DJucePlugin_Build_VST3=1',
+    '-DJucePlugin_Build_VST=0',
+    '-DJucePlugin_Build_AU=0',
+    '-DJucePlugin_Build_AUv3=0',
+    '-DJucePlugin_Build_AAX=0',
+    '-DJucePlugin_Build_Standalone=0',
+    '-DJucePlugin_Build_LV2=0',
+    '-DJucePlugin_Build_Unity=0',
+    '-DJucePlugin_Name="kaos-engine::spectrogram"',
+    '-DJucePlugin_Manufacturer="kaos-engine"',
+    '-DJucePlugin_ManufacturerWebsite=""',
+    '-DJucePlugin_ManufacturerEmail=""',
+    '-DJucePlugin_ManufacturerCode=0x4e75456e',
+    '-DJucePlugin_PluginCode=0x4e655367',
+    '-DJucePlugin_IsSynth=0',
+    '-DJucePlugin_WantsMidiInput=0',
+    '-DJucePlugin_ProducesMidiOutput=0',
+    '-DJucePlugin_IsMidiEffect=0',
+    '-DJucePlugin_EditorRequiresKeyboardFocus=0',
+    '-DJucePlugin_Version=0x010000',
+    '-DJucePlugin_VersionString="1.0.0"',
+    '-DJucePlugin_VersionCode=0x010000',
+    '-DJucePlugin_Vst3Category="Fx|Analyzer"',
+    '-DJUCE_VST3_CAN_REPLACE_VST2=0',
+    '-DJucePlugin_VSTUniqueID=JucePlugin_PluginCode',
+]
+
+spectrogram_plugin_inc = include_directories(['.', '../effects/spectrogram'])
+
+spectrogram_plugin_srcs = files([
+    'spectrogram_plugin.cpp',
+    'spectrogram_editor.cpp',
+    'look_and_feel.cpp',
+])
+
+spectrogram_all_srcs = spectrogram_plugin_srcs + spectrogram_srcs + vst3_client_src
+
+spectrogram_vst3_lib = shared_library('kaos-engine-spectrogram-vst3',
+    name_prefix: '',
+    sources: spectrogram_all_srcs,
+    include_directories: [spectrogram_plugin_inc, juce_include_dirs],
+    cpp_args: build_flags_cpp + build_flags + spectrogram_plugin_defines + [
+        '-Wno-deprecated-declarations', '-Wno-non-virtual-dtor', '-Wno-sign-compare',
+    ],
+    link_args: plugin_link_flags,
+    link_with: lib_juce,
+    dependencies: system_deps,
+    install: false,
+)
+
+spectrogram_vst3_bundle_contents = meson.current_build_dir() / 'kaos-engine-spectrogram.vst3' / 'Contents' / vst3_arch
+
+custom_target('kaos-engine-spectrogram-vst3-bundle',
+    output: 'kaos-engine-spectrogram.vst3',
+    input: spectrogram_vst3_lib,
+    command: [
+        'bash', '-c',
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-spectrogram@1@"'.format(
+            spectrogram_vst3_bundle_contents, lib_suffix),
+    ],
+    build_by_default: true,
+)
+
+# ── Looper VST3 ──────────────────────────────────────────────────────────────
+looper_plugin_defines = [
+    '-DJucePlugin_Build_VST3=1',
+    '-DJucePlugin_Build_VST=0',
+    '-DJucePlugin_Build_AU=0',
+    '-DJucePlugin_Build_AUv3=0',
+    '-DJucePlugin_Build_AAX=0',
+    '-DJucePlugin_Build_Standalone=0',
+    '-DJucePlugin_Build_LV2=0',
+    '-DJucePlugin_Build_Unity=0',
+    '-DJucePlugin_Name="kaos-engine::looper"',
+    '-DJucePlugin_Manufacturer="kaos-engine"',
+    '-DJucePlugin_ManufacturerWebsite=""',
+    '-DJucePlugin_ManufacturerEmail=""',
+    '-DJucePlugin_ManufacturerCode=0x4e75456e',
+    '-DJucePlugin_PluginCode=0x4e654c70',
+    '-DJucePlugin_IsSynth=0',
+    '-DJucePlugin_WantsMidiInput=1',
+    '-DJucePlugin_ProducesMidiOutput=0',
+    '-DJucePlugin_IsMidiEffect=0',
+    '-DJucePlugin_EditorRequiresKeyboardFocus=0',
+    '-DJucePlugin_Version=0x010000',
+    '-DJucePlugin_VersionString="1.0.0"',
+    '-DJucePlugin_VersionCode=0x010000',
+    '-DJucePlugin_Vst3Category="Fx|Tools"',
+    '-DJUCE_VST3_CAN_REPLACE_VST2=0',
+    '-DJucePlugin_VSTUniqueID=JucePlugin_PluginCode',
+]
+
+looper_plugin_inc = include_directories(['.', '../effects/looper'])
+
+looper_plugin_srcs = files([
+    'looper_plugin.cpp',
+    'looper_editor.cpp',
+    'look_and_feel.cpp',
+])
+
+looper_all_srcs = looper_plugin_srcs + looper_srcs + vst3_client_src
+
+looper_vst3_lib = shared_library('kaos-engine-looper-vst3',
+    name_prefix: '',
+    sources: looper_all_srcs,
+    include_directories: [looper_plugin_inc, juce_include_dirs],
+    cpp_args: build_flags_cpp + build_flags + looper_plugin_defines + [
+        '-Wno-deprecated-declarations', '-Wno-non-virtual-dtor', '-Wno-sign-compare',
+    ],
+    link_args: plugin_link_flags,
+    link_with: lib_juce,
+    dependencies: system_deps,
+    install: false,
+)
+
+looper_vst3_bundle_contents = meson.current_build_dir() / 'kaos-engine-looper.vst3' / 'Contents' / vst3_arch
+
+custom_target('kaos-engine-looper-vst3-bundle',
+    output: 'kaos-engine-looper.vst3',
+    input: looper_vst3_lib,
+    command: [
+        'bash', '-c',
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-looper@1@"'.format(
+            looper_vst3_bundle_contents, lib_suffix),
+    ],
+    build_by_default: true,
+)
+
 lfo_clap_lib = shared_library('kaos-engine-lfo',
     name_prefix: '',
     name_suffix: 'clap',

@@ -20,6 +20,9 @@ covering a wide range of sonic character.
   - [kaos-engine::compressor](#kaos-enginecompressor)
   - [kaos-engine::gate](#kaos-enginegate)
   - [kaos-engine::noise](#kaos-enginenoise)
+  - [kaos-engine::looper](#kaos-enginelooper)
+- [Analyzers](#analyzers)
+  - [kaos-engine::spectrogram](#kaos-enginespectrogram)
 - [Controllers](#controllers)
   - [kaos-engine::lfo](#kaos-enginelfo)
   - [kaos-engine::stochastic](#kaos-enginestochastic)
@@ -436,46 +439,178 @@ the gate opens.
 
 ### kaos-engine::noise
 
-A stereo noise generator that adds noise to an input signal. Three operating modes control
-how the noise tracks the input, from constant injection to envelope-proportional modulation.
-Four noise types cover the full spectrum from clinical broadband hiss to organic granular
-texture. The MIX knob is a true dry/wet crossfade: fully left passes the input unmodified;
-fully right outputs only the noise with no dry signal.
+A stereo noise generator that adds, blends, or spectrally injects noise into an input
+signal. Seven noise types span independent broadband sources (White, Pink, Brown,
+Granular) and three input-derived sources that generate noise from the signal itself
+(Residual, Coupled, Diffuse). Four blend modes control how the noise combines with the
+audio. Three gate modes control when and how hard the noise is applied. The MIX knob is
+a true dry/wet crossfade: fully left passes the input unmodified; fully right outputs
+only the processed signal with no dry component.
 
 ![kaos-engine::noise](doc/images/noise.png)
 
 **Noise types**
 
-| Type | Spectral character |
-|---|---|
-| **White** | Flat spectrum -- equal energy at all frequencies. Broadband hiss |
-| **Pink** | -3 dB/oct (1/f). More low-frequency energy. Warmer, natural sounding noise |
-| **Brown** | -6 dB/oct (1/f^2). Deep rumble and low roar. Brownian random walk |
-| **Granular** | Hann-windowed noise bursts spawned from a 16-voice grain pool. SIZE and DENSITY shape the texture from sparse pops to a dense cloud |
+| Type | Character | Active controls |
+|---|---|---|
+| **White** | Flat spectrum -- equal energy at all frequencies. Broadband hiss | GAIN |
+| **Pink** | -3 dB/oct (1/f). More low-frequency energy. Warmer, natural sounding noise | GAIN |
+| **Brown** | -6 dB/oct (1/f^2). Deep rumble and low roar. Brownian random walk | GAIN |
+| **Granular** | Hann-windowed noise bursts from a 16-voice grain pool. Texture ranges from sparse pops to a dense overlapping cloud | GAIN, SIZE, DENSITY |
+| **Residual** | High-pass residual of the input signal: `n = x - LP(x)`. The noise is always correlated with what is playing -- it accentuates transients and adds grain to the attack portion of notes. SIZE sets the LP cutoff (smaller SIZE = higher cutoff = more texture) | GAIN, SIZE |
+| **Coupled** | Logistic chaos driven by the input level. The map `x -> r*x*(1-x)` produces deterministic chaos at high DENSITY and period-2 oscillation at low DENSITY. The noise amplitude depends on how hard the signal is driving the map | GAIN, DENSITY |
+| **Diffuse** | Schroeder allpass cascade applied to the input. Every frequency is present (the spectrum is unchanged) but the signal is smeared in time, creating a diffuse halo around each transient. DENSITY sets the allpass coefficient (0 = transparent, 1 = maximum diffusion) | GAIN, DENSITY |
 
-**Modes**
+**Gate modes**
 
 | Mode | Behaviour |
 |---|---|
-| **Follow** | Noise amplitude tracks the input signal's envelope proportionally. Louder input = louder noise. Below THRESHOLD the noise fades to zero via the RELEASE tail. This is the default mode |
+| **Follow** | Noise amplitude tracks the input envelope proportionally. Louder input = louder noise. Below THRESHOLD the noise fades to zero via the RELEASE tail. Default mode |
 | **Gated** | Binary gate -- noise snaps fully on when the input crosses THRESHOLD and fades fully off when it drops below. ATTACK and RELEASE smooth the transitions |
 | **Always On** | Noise runs continuously at fixed amplitude regardless of input. THRESHOLD, ATTACK, and RELEASE are inactive |
+
+**Blend modes**
+
+The blend mode controls how the noise signal `n` combines with the dry input `x`.
+
+| Blend | Signal flow | Character |
+|---|---|---|
+| **Add** | `out = (1 - mix)*x + mix*n` | Standard dry/wet crossfade. At MIX = 0 you hear only the input; at MIX = 1 only the noise | 
+| **AM** | `out = x * (1 + mix*n)` | Noise amplitude-modulates the signal. The input is always present but its amplitude fluctuates at the rate of the noise source. Subtle at low GAIN; the signal becomes grainy and irregular at high GAIN |
+| **Saturate** | `out = lerp(x, tanh(x + mod*n), mix)` | Noise is injected before a soft clipper. MOD controls the injection depth. Low MOD adds warmth and subtle harmonic shimmer; high MOD drives the signal into distortion whose character changes with the noise |
+| **Spectral** | Per-bin magnitude scaling: `|X_k|' = |X_k| * (1 + mod*n_k)` | OLA FFT processing (1024-pt, 50% overlap, ~11 ms latency). Each frequency bin is independently scaled by a different noise sample. MOD controls how far each bin can deviate from its original amplitude. Adds a continuously shifting spectral texture without changing the overall timbre at low MOD |
 
 **Parameters**
 
 | Knob | Range | Description |
 |---|---|---|
-| Gain | 0--1 | Noise amplitude before mixing. Scales all four noise types equally |
-| Size | 5--500 ms | Granular mode only -- grain length. Longer grains = smoother texture; shorter = more percussive |
-| Density | 0--1 | Granular mode only -- average grain spawn rate. 0 = sparse isolated pops; 1 = dense overlapping cloud |
-| Threshold | -60 to 0 dBFS | Follow / Gated modes -- input level at which noise activates. Below this level noise decays toward silence via the RELEASE tail |
-| Attack | 0.1--500 ms | Follow / Gated modes -- time for noise to fade in after signal exceeds threshold |
-| Release | 1--5000 ms | Follow / Gated modes -- time for noise to trail off after signal drops below threshold. Long values give a slow, organic decay tail |
-| Mix | 0--1 | Dry/wet crossfade. 0 = input signal only; 1 = noise only (no dry signal) |
+| Gain | 0--1 | Noise amplitude before the blend stage. Scales all noise types equally |
+| Mod | 0--1 | Injection depth for Saturate and Spectral modes. Inactive (greyed out) in Add and AM modes |
+| Size | 5--500 ms | Granular: grain length. Residual: LP smoothing window (smaller = brighter residual). Inactive for White, Pink, Brown, Coupled, Diffuse |
+| Density | 0--1 | Granular: grain spawn rate. Coupled: chaos coupling level. Diffuse: allpass coefficient. Inactive for White, Pink, Brown, Residual |
+| Threshold | -60 to 0 dBFS | Follow / Gated -- input level at which noise activates. Inactive in Always On mode |
+| Attack | 0.1--500 ms | Follow / Gated -- time for noise to fade in after signal crosses threshold. Inactive in Always On mode |
+| Release | 1--5000 ms | Follow / Gated -- time for noise to decay after signal drops below threshold. Inactive in Always On mode |
+| Mix | 0--1 | Dry/wet crossfade. 0 = input signal only; 1 = processed signal only |
 | Output | -20 to +6 dB | Final output trim applied after the mix |
 
-SIZE and DENSITY are greyed out when not in Granular mode. THRESHOLD, ATTACK, and RELEASE
-are greyed out in Always On mode.
+**Display:** Dual-line scrolling strip chart at 30 Hz. The faint red line is the raw
+input (dry). The bright red line with fill is the processed output (wet). Comparing the
+two lines shows how much the noise is altering the signal -- particularly useful with AM
+and Spectral modes where the change can be subtle.
+
+---
+
+### kaos-engine::looper
+
+A stereo loop recorder with five playback modes, DAW-synced or freeform recording,
+MIDI CC transport control, and a waveform display with a real-time playback cursor.
+The FEEDBACK parameter controls amplitude decay on each loop pass across all modes,
+letting loops fade out gradually or sustain indefinitely.
+
+![kaos-engine::looper](doc/images/looper.png)
+
+**Transport**
+
+| Button | Action |
+|---|---|
+| **REC** | Start recording. In Time Sync mode the recording begins at the next bar boundary. In Freeform mode recording starts immediately. Pressing REC while Stopped restarts a new recording over the existing buffer |
+| **STOP** | Stop recording and begin playback; or pause playback if already playing. In Time Sync mode the recording stops at the next bar boundary |
+| **CLEAR** | Discard the loop buffer immediately in any state and return to Idle |
+
+**Playback modes**
+
+| Mode | Behaviour |
+|---|---|
+| **Forward** | Loop plays from start to end, repeating. At each loop boundary the buffer is scaled by FEEDBACK. FEEDBACK = 1.0 sustains the loop indefinitely; lower values cause it to fade each cycle |
+| **Backward** | Loop plays from end to start, reversing. Same FEEDBACK boundary decay as Forward |
+| **Bounce** | Playhead alternates direction -- forward to the end, then backward to the start, then forward again. FEEDBACK is applied once per complete forward+backward cycle |
+| **Accumulate** | Playhead moves forward. At each sample the live input is added directly to the buffer (`buf += input`). At the loop boundary the entire buffer is scaled by FEEDBACK. Layers of input accumulate, with each pass fading the previous content by FEEDBACK |
+| **Accumulate Reverse** | Same as Accumulate but the buffer is also reversed at each loop boundary. The effect is a reversing echo cascade: pass 1 records normally; at the boundary the buffer is reduced by FEEDBACK and flipped, so pass 2 hears the reversed recording while overdubbing new material; at the next boundary the combined content is again reduced and flipped, returning pass 1's material to its original orientation but quieter, while pass 2's material is now reversed. Each subsequent pass adds another layer while all existing layers decay and alternate direction |
+
+**Sync modes**
+
+| Mode | Behaviour |
+|---|---|
+| **Freeform** | Recording starts and stops instantly on REC / STOP |
+| **Time Sync** | Recording aligns to bar boundaries from the DAW clock. The BARS parameter sets how many bars to record before auto-stopping. Use when the loop length must be an exact musical phrase |
+
+**MIDI CC control**
+
+The looper responds to three configurable MIDI CC numbers on a configurable channel.
+All three trigger on the leading edge (value crosses 64 from below), so a momentary
+footswitch or pad sends one command per press regardless of hold time.
+
+| Field | Default CC | Description |
+|---|---|---|
+| CC REC | 20 | Trigger the REC command |
+| CC STOP | 21 | Trigger the STOP command |
+| CC CLEAR | 22 | Trigger the CLEAR command |
+| CC CHANNEL | 0 | MIDI channel to listen on. 0 = respond to any channel |
+
+**Parameters**
+
+| Knob | Range | Description |
+|---|---|---|
+| Feedback | 0--1 | Amplitude scale applied to the entire buffer at each loop boundary. 1.0 = no decay; 0.5 = each pass is half as loud as the previous. Active in all playback modes |
+| Input | -20 to +12 dB | Pre-gain on the live input before recording or overdubbing. Boost quiet sources or attenuate loud ones |
+| Output | -20 to +6 dB | Post-mix output trim |
+| Mix | 0--1 | Blend between live input passthrough and loop playback. 0 = input only; 1 = loop only |
+
+**Display:** The waveform area shows the peak amplitude of the recorded loop as a
+centred symmetric waveform (white or brighter = louder). During recording a red progress
+bar and cursor advance left to right. During playback a vertical red cursor marks the
+current read position. The state label (IDLE / WAIT REC / RECORDING / WAIT STOP /
+PLAYING / STOPPED) reflects the current state with colour coding: red = recording,
+green = playing, blue = stopped.
+
+**Maximum recording time:** 30 seconds at any sample rate. The buffer is pre-allocated
+at `prepareToPlay` so there is no allocation during recording.
+
+---
+
+## Analyzers
+
+Analyzers pass audio through unmodified and display information about the signal.
+
+---
+
+### kaos-engine::spectrogram
+
+A scrolling spectrogram that displays the frequency content of the input signal over
+time. Audio passes through unchanged. The display updates at 30 Hz with a new row of
+frequency data scrolled in from the bottom; older time is above, newest is at the
+bottom. The frequency axis is logarithmic (20 Hz -- 20 kHz) matching human pitch
+perception. Amplitude is encoded as colour using a five-point gradient tuned to the
+project palette.
+
+![kaos-engine::spectrogram](doc/images/spectrogram.png)
+
+**Display**
+
+| Element | Description |
+|---|---|
+| **Spectrogram image** | 700 x 438 px scrolling image. Each row is one FFT frame (~46 ms at 44.1 kHz). Time flows downward; the most recent frame is always at the bottom |
+| **Frequency axis** | Log scale from 20 Hz to 20 kHz with tick marks and labels at 50, 100, 200, 500, 1k, 2k, 5k, 10k, 20k Hz. Faint vertical gridlines extend into the image |
+| **Color scale** | Legend in the top-right corner of the image. Maps 0 dB (near-white peak) to -90 dB (background black) via cadmium red and dark orange |
+| **Time axis** | Rotated "time ->" label on the left edge |
+
+**Color map**
+
+| Level | Colour | Meaning |
+|---|---|---|
+| 0 dB | Near-white (255, 230, 180) | Full-scale signal |
+| -11 dB | Hot orange (255, 120, 30) | Very loud |
+| -30 dB | Cadmium red (210, 43, 43) | Moderately loud (project accent colour) |
+| -55 dB | Dark red (100, 20, 20) | Quiet |
+| -80 dB | Very dark red (60, 10, 10) | Near noise floor |
+| -90 dB | Background (20, 20, 20) | Silence |
+
+**FFT settings:** 2048-point FFT with Hann window. Frequency resolution: ~21.5 Hz per
+bin at 44.1 kHz. Each display column maps to a fractional bin index computed from the
+log-frequency mapping; linear interpolation between adjacent bins prevents visible
+block boundaries at low frequencies where multiple columns would otherwise snap to the
+same integer bin.
 
 ---
 
@@ -675,7 +810,9 @@ kaos-engine/
 │   │   ├── eq/              # 5-band parametric EQ DSP (RBJ biquads)
 │   │   ├── compressor/      # dynamics compressor DSP (VCA / Optical / FET)
 │   │   ├── gate/            # noise gate / expander / ducker DSP
-│   │   └── noise/           # noise generator DSP (White / Pink / Brown / Granular)
+│   │   ├── noise/           # noise generator DSP (7 types, 4 blend modes)
+│   │   ├── looper/          # loop recorder DSP (5 playback modes, FEEDBACK decay)
+│   │   └── spectrogram/     # passthrough analyzer (FFT + scrolling display)
 │   ├── framework/
 │   │   ├── lfo/             # LFO controller DSP (no JUCE dependency)
 │   │   ├── stochastic/      # stochastic controller DSP (6 modes inc. Lorenz attractor)
@@ -706,6 +843,7 @@ Acronyms and abbreviations used across the plugins, UI labels, and documentation
 |---|---|---|
 | **AM** | Amplitude Modulation | Multiplying a signal by a carrier to produce sidebands at f_in ± f_carrier. When the carrier includes a DC bias the original signal is preserved alongside the sidebands. |
 | **AP** | Allpass (filter) | A filter with a flat magnitude response that shifts phase. Used for diffusion in reverbs and as a fractional-delay interpolator. An AP section: `y[n] = −a·x[n] + x[n−1] + a·y[n−1]`. |
+| **API** | Application Programming Interface | A defined boundary through which software components communicate. Used in kaos-engine to refer to the JUCE AudioPlayHead API (reads DAW transport position and tempo) and the CLAP plugin API (defines the contract between plugins and hosts). |
 | **BBD** | Bucket-Brigade Device | An analog delay line built from a chain of capacitors that pass charge from stage to stage at a clock rate. Emulated here via a shift-register buffer with a low-pass output filter. |
 | **CLAP** | CLever Audio Plugin | Open plugin API developed by u-he and Bitwig (2022). Defines sample-accurate parameter modulation, per-note expression (MPE-style), and a standardised parameter modulation routing API between plugins. kaos-engine::lfo builds as `.clap` in addition to VST3. Supported by Bitwig Studio, Reaper, and FL Studio 2024+. |
 | **BP** | Band-Pass (filter) | A filter that passes a band of frequencies centred on the cutoff and attenuates both below and above it. |
@@ -713,10 +851,14 @@ Acronyms and abbreviations used across the plugins, UI labels, and documentation
 | **CPU** | Central Processing Unit | General compute load. Used informally to mean DSP processing cost per sample block. |
 | **CV** | Control Voltage | In analog synthesis, a voltage signal (typically 0–5 V or ±5 V) used to modulate parameters rather than carry audio. In kaos-engine, Audio CV refers to a modulation signal on a dedicated mono sidechain bus, where sample values in the range −1..+1 carry the control signal. The gate outputs a unipolar 0/+1 gate signal; the LFO outputs a bipolar −1..+1 waveform. DAWs that support sidechain routing (Bitwig, Reaper) can connect these buses to plugin parameters or other controllers. |
 | **ct** | Cent | One hundredth of a semitone. Used for fine pitch offsets: 100 ct = 1 st. |
+| **DAW** | Digital Audio Workstation | The host software used to record, arrange, mix, and master audio (e.g. Bitwig Studio, Reaper, Ableton Live, FL Studio). DAWs host VST3 and CLAP plugins, provide the audio clock and block size, and expose transport state (play/stop, BPM, bar position) that plugins read via the JUCE AudioPlayHead API. |
 | **dB** | Decibel | Logarithmic unit of level. +6 dB ≈ double amplitude; −6 dB ≈ half amplitude. |
 | **DC** | Direct Current (offset) | A non-zero mean value in an audio signal. Asymmetric waveshapers and rectifiers introduce DC; removed with a DC-blocking IIR filter: `y[n] = x[n] − x[n−1] + R·y[n−1]`, R ≈ 0.995. |
 | **DSP** | Digital Signal Processing | The mathematics of manipulating audio (or other signals) in the discrete-time domain. |
+| **EQ** | Equalizer | A filter (or bank of filters) that adjusts the relative level of different frequency bands in a signal. kaos-engine::eq is a 5-band parametric EQ; simpler single-band shelving and peak filters also appear in the distortion and reverb filter sections. |
 | **FDN** | Feedback Delay Network | A reverb architecture of N delay lines cross-coupled through a unitary mixing matrix (typically Hadamard). Energy-preserving; produces smooth, dense tails. |
+| **FET** | Field-Effect Transistor | A semiconductor device whose fast, nonlinear response characterises FET-based compressors such as the UREI 1176. In kaos-engine::compressor's FET mode the feed-back topology and level-dependent attack speed model this character: short attacks, an aggressive punch, and audible colouration at high ratios. |
+| **FFT** | Fast Fourier Transform | An O(N log N) algorithm for computing the Discrete Fourier Transform, converting a block of time-domain samples into a frequency-domain magnitude/phase spectrum. Used in kaos-engine for the EQ and spectrogram displays (magnitude spectrum), the noise Spectral blend mode (per-bin OLA processing), and pitch-shift frame analysis. JUCE's `dsp::FFT` provides the implementation. |
 | **FIR** | Finite Impulse Response | A filter whose output depends only on a finite window of past inputs; always stable. Used in windowed-sinc interpolation and velvet-noise reverb. |
 | **FM** | Frequency Modulation | Varying the instantaneous frequency (or phase) of a carrier by a modulator signal. At audio rates this generates sidebands described by Bessel functions. |
 | **Hz / kHz** | Hertz / Kilohertz | Cycles per second / thousands of cycles per second. Used for frequencies and sample rates. |
@@ -728,12 +870,18 @@ Acronyms and abbreviations used across the plugins, UI labels, and documentation
 | **LFO** | Low-Frequency Oscillator | An oscillator running at sub-audio rates (typically 0.05–20 Hz) used to modulate parameters over time (tremolo, vibrato, wow/flutter). In kaos-engine the LFO is a standalone controller plugin that routes its output via MIDI CC or Audio CV to other plugins. |
 | **LP** | Low-Pass (filter) | A filter that passes frequencies below the cutoff and attenuates those above it. Used for tone shaping and as a damping filter in delay/reverb feedback paths. |
 | **MIDI** | Musical Instrument Digital Interface | A serial communication protocol (1983) for transmitting musical events between devices and software. MIDI CC (Continuous Controller) messages carry 7-bit values (0–127) on a numbered channel (1–16) and can be mapped to plugin parameters in most DAWs. kaos-engine::lfo outputs MIDI CC messages from its `processBlock` when set to MIDI CC or MIDI CC + CV mode. |
+| **MPE** | MIDI Polyphonic Expression | A MIDI extension that assigns per-note pitch bend, pressure (aftertouch), and slide to individual MIDI channels, enabling expressive per-note control on compatible controllers and instruments. Referenced in the context of the CLAP plugin format's native per-note expression support. |
 | **ms** | Milliseconds | One thousandth of a second. Standard unit for delay times and reverb pre-delay. |
 | **OLA** | Overlap-Add | A time-domain technique for time-stretching and pitch-shifting. Successive windowed frames of the input are written at a different hop size to stretch or compress time; resampling then corrects pitch. |
 | **Q** | Quality factor | Dimensionless measure of filter resonance. Q = f_centre / bandwidth. Q = 0.707 gives a maximally flat (Butterworth) response; higher Q produces a sharper resonant peak. |
+| **RBJ** | Robert Bristow-Johnson | Author of the widely-cited *Audio EQ Cookbook*, the standard reference for second-order biquad filter design. The kaos-engine::eq and kaos-engine::filter plugins use RBJ formulas for peaking bell EQ, shelving filters, and Butterworth lowpass/highpass responses. |
+| **RMS** | Root Mean Square | `sqrt(mean(x[n]^2))` computed over a short window. Correlates better with perceived loudness than instantaneous peak detection because it averages energy over time. Used in kaos-engine::compressor for the level detector and in kaos-engine::envelope-follower as an alternative to peak detection. |
 | **RT60** | Reverberation Time (60 dB) | The time for a room's sound energy to decay by 60 dB after a source stops. A standard measure of perceived reverb length. |
+| **S+H** | Sample and Hold | A circuit (or its DSP equivalent) that reads an input value at a clock tick and holds it unchanged until the next tick. In kaos-engine::stochastic's S+H mode a new random value is drawn at each clock tick and held until the next, producing the classic staircase CV pattern associated with analogue random voltage sources and early sequencers. |
 | **SSB** | Single-Sideband | A modulation method that produces only one sideband (upper or lower) rather than both. In kaos-engine::frequency-shifter, SSB is achieved via the phasing method: the Hilbert transform path cancels the unwanted sideband. |
 | **st** | Semitone | One twelfth of an octave. A frequency ratio of 2^(1/12) ≈ 1.0595. |
 | **SVF** | State Variable Filter | A two-integrator-loop filter topology (Simper variant used here) that simultaneously outputs LP, HP, and BP responses from the same state, making it easy to switch type without discontinuity. |
+| **UI** | User Interface | The visual and interactive portion of a plugin — the editor window containing knobs, sliders, combo boxes, displays, and buttons. In JUCE, the UI runs on the message thread and is kept separate from the audio processing thread. |
+| **VCA** | Voltage-Controlled Amplifier | An amplifier whose gain is set by a control voltage rather than a fixed resistor. In hardware compressors the VCA is the gain element that applies the computed gain reduction to the audio signal. kaos-engine::compressor's VCA mode models a clean, feed-forward topology with program-independent attack and release times. |
 | **VST3** | Virtual Studio Technology 3 | Plugin format developed by Steinberg. The standard format for audio effects and instruments on Windows and Linux. kaos-engine builds each effect as a `.vst3` bundle. |
 | **ZOH** | Zero-Order Hold | A sample-and-hold operation that holds the last sampled value for N samples before updating. Used in sample-rate reduction to produce intentional aliasing artifacts. |

@@ -1,6 +1,7 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_dsp/juce_dsp.h>
 #include "look_and_feel.h"
 #include "filter_plugin.h"
 
@@ -36,6 +37,21 @@ private:
     using Attachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     std::unique_ptr<Attachment> cutoff_att_, resonance_att_, drive_att_;
     std::unique_ptr<Attachment> gain_att_, mix_att_, output_att_;
+
+    // ── Spectrum analyser ─────────────────────────────────────────────────────
+    static constexpr int kFftOrder  = FilterPlugin::kFftOrder;
+    static constexpr int kFftSize   = FilterPlugin::kFftSize;
+    static constexpr int kScopeSize = 512;
+
+    juce::dsp::FFT                      fft_    { kFftOrder };
+    juce::dsp::WindowingFunction<float> window_ {
+        static_cast<size_t>(kFftSize),
+        juce::dsp::WindowingFunction<float>::hann };
+
+    float fft_data_  [kFftSize * 2] {};
+    float scope_data_[kScopeSize]   {};
+
+    void update_spectrum();
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     void draw_response(juce::Graphics& g, juce::Rectangle<int> area);

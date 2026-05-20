@@ -108,8 +108,29 @@ void FilterEditor::setup_knob(Slider& k, Label& l, const String& name)
 
 void FilterEditor::timerCallback()
 {
-    repaint(0, kDispY, kWidth, kDispH);
+    update_spectrum();
     update_mode_ui();
+    repaint(0, kDispY, kWidth, kDispH);
+}
+
+void FilterEditor::update_spectrum()
+{
+    if (!plugin_.pull_fft_block(fft_data_)) return;
+    window_.multiplyWithWindowingTable(fft_data_, kFftSize);
+    fft_.performFrequencyOnlyForwardTransform(fft_data_);
+
+    const float scale = Decibels::gainToDecibels(float(kFftSize));
+    const float sr    = float(plugin_.get_sample_rate() > 0 ? plugin_.get_sample_rate() : 44100.0);
+
+    for (int i = 0; i < kScopeSize; ++i) {
+        const float freq = 20.0f * std::pow(1000.0f, float(i) / float(kScopeSize - 1));
+        const int   bin  = jlimit(0, kFftSize / 2 - 1,
+                               roundToInt(freq * float(kFftSize) / sr));
+        const float lvl  = Decibels::gainToDecibels(std::max(fft_data_[bin], 1e-10f)) - scale;
+        const float nv   = jmap(lvl, -80.0f, 0.0f, 0.0f, 1.0f);
+        const float c    = nv > scope_data_[i] ? 0.4f : 0.92f;
+        scope_data_[i]   = c * scope_data_[i] + (1.0f - c) * nv;
+    }
 }
 
 void FilterEditor::update_mode_ui()
@@ -354,6 +375,23 @@ void FilterEditor::draw_response(Graphics& g, Rectangle<int> area)
     g.drawText("+12", int(ax) + 2, int(db_to_y(12.0f)) - 4,  24, 9, Justification::centredLeft);
     g.drawText("  0", int(ax) + 2, int(db_to_y( 0.0f)) - 4,  24, 9, Justification::centredLeft);
     g.drawText("-12", int(ax) + 2, int(db_to_y(-12.0f)) - 4, 24, 9, Justification::centredLeft);
+
+    // ── Spectrum ──────────────────────────────────────────────────────────────
+    {
+        Path spectrum;
+        for (int i = 0; i < kScopeSize; ++i) {
+            const float sx = ax + float(i) / float(kScopeSize - 1) * w;
+            const float sy = ay + h * (1.0f - scope_data_[i]);
+            if (i == 0) spectrum.startNewSubPath(sx, sy);
+            else        spectrum.lineTo(sx, sy);
+        }
+        Path filled = spectrum;
+        filled.lineTo(ax + w, ay + h); filled.lineTo(ax, ay + h); filled.closeSubPath();
+        g.setColour(Colour(laf_.text_primary()).withAlpha(0.07f));
+        g.fillPath(filled);
+        g.setColour(Colour(laf_.text_muted()).withAlpha(0.35f));
+        g.strokePath(spectrum, PathStrokeType(1.0f));
+    }
 
     // ── Response curve ────────────────────────────────────────────────────────
     const int n_pts = int(w);

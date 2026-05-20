@@ -64,6 +64,33 @@ float NoiseProcessor::noise_sample(NoiseChannel& ch) const
     }
 }
 
+// Input-derived noise types: produce a sample correlated with x.
+float NoiseProcessor::derived_noise_sample(NoiseChannel& ch, float x) const
+{
+    auto& c = const_cast<NoiseChannel&>(ch);
+    switch (type_) {
+        case NoiseType::Residual: {
+            // LP cutoff: fc = 1000 / grain_size_ms_ Hz
+            const float fs    = float(sample_rate_);
+            const float fc    = 1000.0f / grain_size_ms_;
+            const float alpha = std::exp(-2.0f * float(M_PI) * fc / fs);
+            // Normalize: residual amplitude <= |x| (signal-dependent).
+            // tanh(n * 4) brings it to roughly ±1 range for typical signals,
+            // giving similar modulation depth to the independent noise types.
+            return std::tanh(c.residual(x, alpha) * 4.0f);
+        }
+        case NoiseType::Coupled:
+            // Already ±1 range after DC removal; no further normalization needed.
+            return c.coupled(x, density_);
+        case NoiseType::Diffuse: {
+            const float g = 0.1f + density_ * 0.8f;
+            // Allpass preserves amplitude exactly — normalize same as Residual.
+            return std::tanh(c.diffuse(x, g) * 4.0f);
+        }
+        default: return 0.0f;
+    }
+}
+
 float NoiseProcessor::granular_sample(NoiseChannel& ch)
 {
     float out = 0.0f;
@@ -109,6 +136,11 @@ void NoiseProcessor::process(float* left, float* right, int num_samples)
             }
             nl = granular_sample(ch_l_);
             nr = granular_sample(ch_r_);
+        } else if (type_ == NoiseType::Residual ||
+                   type_ == NoiseType::Coupled  ||
+                   type_ == NoiseType::Diffuse) {
+            nl = derived_noise_sample(ch_l_, left [i]);
+            nr = derived_noise_sample(ch_r_, right[i]);
         } else {
             nl = noise_sample(ch_l_);
             nr = noise_sample(ch_r_);
@@ -116,9 +148,30 @@ void NoiseProcessor::process(float* left, float* right, int num_samples)
 
         const float noise_l = nl * gain_ * gate_smooth_;
         const float noise_r = nr * gain_ * gate_smooth_;
-        const float dry = 1.0f - mix_;
-        left [i] = output_lin_ * (dry * left [i] + mix_ * noise_l);
-        right[i] = output_lin_ * (dry * right[i] + mix_ * noise_r);
+
+        float out_l, out_r;
+        switch (blend_) {
+            case NoiseBlend::AM:
+                // Amplitude modulation: noise multiplies the signal.
+                // y = x * (1 + mix*n)
+                out_l = left [i] * (1.0f + mix_ * noise_l);
+                out_r = right[i] * (1.0f + mix_ * noise_r);
+                break;
+            case NoiseBlend::Saturate:
+                // Noise injected before a tanh soft clipper.
+                // y = lerp(x, tanh(x + mod*n), mix)
+                out_l = (1.0f - mix_) * left [i] + mix_ * std::tanh(left [i] + mod_ * noise_l);
+                out_r = (1.0f - mix_) * right[i] + mix_ * std::tanh(right[i] + mod_ * noise_r);
+                break;
+            default: { // Add: standard dry/wet crossfade
+                const float dry = 1.0f - mix_;
+                out_l = dry * left [i] + mix_ * noise_l;
+                out_r = dry * right[i] + mix_ * noise_r;
+                break;
+            }
+        }
+        left [i] = output_lin_ * out_l;
+        right[i] = output_lin_ * out_r;
     }
 }
 
@@ -132,6 +185,11 @@ float NoiseProcessor::next_preview_sample()
         }
         return granular_sample(ch_prev_) * gain_;
     }
+    // Input-derived types have no signal in preview context.
+    if (type_ == NoiseType::Residual ||
+        type_ == NoiseType::Coupled  ||
+        type_ == NoiseType::Diffuse)
+        return 0.0f;
     return noise_sample(ch_prev_) * gain_;
 }
 

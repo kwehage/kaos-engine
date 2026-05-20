@@ -115,6 +115,36 @@ void FilterPlugin::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuffer&
         std::copy(buf.getReadPointer(0), buf.getReadPointer(0) + ns, tmp.getData());
         dsp_.process(buf.getWritePointer(0), tmp.getData(), ns);
     }
+
+    // Feed mono mix of the post-filter output into the FIFO for spectrum display.
+    if (nch >= 2) {
+        const float* L = buf.getReadPointer(0);
+        const float* R = buf.getReadPointer(1);
+        for (int i = 0; i < ns; ++i) push_to_fifo(0.5f * (L[i] + R[i]));
+    } else if (nch == 1) {
+        for (int i = 0; i < ns; ++i) push_to_fifo(buf.getReadPointer(0)[i]);
+    }
+}
+
+void FilterPlugin::push_to_fifo(float sample)
+{
+    if (fifo_.getFreeSpace() > 0) {
+        int s1, n1, s2, n2;
+        fifo_.prepareToWrite(1, s1, n1, s2, n2);
+        if (n1 > 0) fifo_buf_[s1] = sample;
+        fifo_.finishedWrite(n1);
+    }
+}
+
+bool FilterPlugin::pull_fft_block(float* fft_out)
+{
+    if (fifo_.getNumReady() < kFftSize) return false;
+    int s1, n1, s2, n2;
+    fifo_.prepareToRead(kFftSize, s1, n1, s2, n2);
+    if (n1 > 0) std::copy(fifo_buf_+s1, fifo_buf_+s1+n1, fft_out);
+    if (n2 > 0) std::copy(fifo_buf_+s2, fifo_buf_+s2+n2, fft_out+n1);
+    fifo_.finishedRead(n1 + n2);
+    return true;
 }
 
 // ── State ──────────────────────────────────────────────────────────────────────

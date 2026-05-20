@@ -1,5 +1,6 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_dsp/juce_dsp.h>
 #include "../../src/effects/filter/filter_processor.h"
 
 namespace kaos_engine {
@@ -34,13 +35,24 @@ public:
 
     juce::AudioProcessorValueTreeState& get_apvts() { return apvts_; }
 
-    FilterMode get_mode()      const { return dsp_.get_mode(); }
-    float      get_cutoff()    const { return dsp_.get_cutoff(); }
-    float      get_resonance() const { return dsp_.get_resonance(); }
-    float      get_gain_db()   const { return dsp_.get_gain_db(); }
+    FilterMode get_mode()        const { return dsp_.get_mode(); }
+    float      get_cutoff()      const { return dsp_.get_cutoff(); }
+    float      get_resonance()   const { return dsp_.get_resonance(); }
+    float      get_gain_db()     const { return dsp_.get_gain_db(); }
     double     get_sample_rate() const { return getSampleRate(); }
 
+    // ── Spectrum analyser interface ────────────────────────────────────────────
+    static constexpr int kFftOrder     = 11;
+    static constexpr int kFftSize      = 1 << kFftOrder;   // 2048
+    static constexpr int kFifoCapacity = kFftSize * 4;
+
+    bool pull_fft_block(float* fft_out);
+
 private:
+    juce::AbstractFifo fifo_     { kFifoCapacity };
+    float              fifo_buf_ [kFifoCapacity] {};
+
+    void push_to_fifo(float sample);
     juce::AudioProcessorValueTreeState apvts_;
     FilterProcessor dsp_;
 

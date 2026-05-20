@@ -1,10 +1,17 @@
 #include "noise_plugin.h"
 #include "noise_editor.h"
+#include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 namespace kaos_engine {
 
 static constexpr auto kType      = "noise_type";
 static constexpr auto kMode      = "noise_mode";
+static constexpr auto kBlend     = "noise_blend";
+static constexpr auto kMod       = "noise_mod";
 static constexpr auto kGain      = "gain";
 static constexpr auto kGrainSize = "grain_size";
 static constexpr auto kDensity   = "density";
@@ -24,11 +31,23 @@ NoisePlugin::make_params()
 
     p.push_back(std::make_unique<AudioParameterChoice>(
         ParameterID{kType, 1}, "Noise Type",
-        StringArray{"White", "Pink", "Brown", "Granular"}, 0));
+        StringArray{"White", "Pink", "Brown", "Granular",
+                    "Residual", "Coupled", "Diffuse"}, 0));
 
     p.push_back(std::make_unique<AudioParameterChoice>(
         ParameterID{kMode, 1}, "Mode",
         StringArray{"Follow", "Gated", "Always On"}, 0));
+
+    p.push_back(std::make_unique<AudioParameterChoice>(
+        ParameterID{kBlend, 1}, "Blend",
+        StringArray{"Add", "AM", "Saturate", "Spectral"}, 0));
+
+    {
+        NormalisableRange<float> r(0.0f, 1.0f, 0.001f);
+        r.setSkewForCentre(0.1f);  // most useful range is 0-0.3; skew puts it centre-knob
+        p.push_back(std::make_unique<AudioParameterFloat>(
+            ParameterID{kMod, 1}, "Mod", r, 0.03f));
+    }
 
     {
         NormalisableRange<float> r(0.0f, 1.0f, 0.001f);
@@ -94,6 +113,8 @@ NoisePlugin::NoisePlugin()
 {
     p_type_       = apvts_.getRawParameterValue(kType);
     p_mode_       = apvts_.getRawParameterValue(kMode);
+    p_blend_      = apvts_.getRawParameterValue(kBlend);
+    p_mod_        = apvts_.getRawParameterValue(kMod);
     p_gain_       = apvts_.getRawParameterValue(kGain);
     p_grain_size_ = apvts_.getRawParameterValue(kGrainSize);
     p_density_    = apvts_.getRawParameterValue(kDensity);
@@ -114,8 +135,26 @@ bool NoisePlugin::isBusesLayoutSupported(const BusesLayout& layouts) const
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────────
 
-void NoisePlugin::prepareToPlay(double sr, int bs)  { dsp_.prepare(sr, bs); }
-void NoisePlugin::releaseResources()                { dsp_.reset(); }
+void NoisePlugin::prepareToPlay(double sr, int bs)
+{
+    dsp_.prepare(sr, bs);
+
+    // Pre-compute Hann window for OLA analysis.
+    for (int i = 0; i < kSpectSize; ++i)
+        hann_win_[i] = 0.5f * (1.0f - std::cos(2.0f * float(M_PI) * i / kSpectSize));
+
+    spect_noise_l_.seed(0x12345678u);
+    spect_noise_r_.seed(0xabcdef01u);
+    reset_ola();
+}
+
+void NoisePlugin::reset_ola()
+{
+    ola_l_ = {};  ola_l_.out_write_ = kSpectHop;
+    ola_r_ = {};  ola_r_.out_write_ = kSpectHop;
+}
+
+void NoisePlugin::releaseResources() { dsp_.reset(); reset_ola(); }
 
 // ── Processing ────────────────────────────────────────────────────────────────
 
@@ -124,8 +163,10 @@ void NoisePlugin::processBlock(juce::AudioBuffer<float>& buf,
 {
     juce::ScopedNoDenormals ndn;
 
-    dsp_.set_type       (static_cast<NoiseType>(juce::roundToInt(p_type_->load())));
-    dsp_.set_mode       (static_cast<NoiseMode>(juce::roundToInt(p_mode_->load())));
+    dsp_.set_type       (static_cast<NoiseType> (juce::roundToInt(p_type_ ->load())));
+    dsp_.set_mode       (static_cast<NoiseMode> (juce::roundToInt(p_mode_ ->load())));
+    dsp_.set_blend      (static_cast<NoiseBlend>(juce::roundToInt(p_blend_->load())));
+    dsp_.set_mod        (p_mod_->load());
     dsp_.set_gain       (p_gain_      ->load());
     dsp_.set_grain_size_ms(p_grain_size_->load());
     dsp_.set_grain_density(p_density_  ->load());
@@ -135,9 +176,138 @@ void NoisePlugin::processBlock(juce::AudioBuffer<float>& buf,
     dsp_.set_mix        (p_mix_       ->load());
     dsp_.set_output     (p_output_    ->load());
 
+    const NoiseBlend blend = static_cast<NoiseBlend>(juce::roundToInt(p_blend_->load()));
+
     float* left  = buf.getWritePointer(0);
     float* right = buf.getWritePointer(1);
-    dsp_.process(left, right, buf.getNumSamples());
+    const int ns = buf.getNumSamples();
+
+    // Capture dry (input) before in-place processing.
+    if (ns > 0) {
+        dry_sample_.store(0.5f * (left[ns - 1] + right[ns - 1]),
+                          std::memory_order_relaxed);
+    }
+
+    if (blend == NoiseBlend::Spectral) {
+        const float mod          = p_mod_      ->load();
+        const float mix          = p_mix_      ->load();
+        const float output_lin   = std::pow(10.0f, p_output_->load() * 0.05f);
+        const float threshold_lin= std::pow(10.0f, p_threshold_->load() * 0.05f);
+        const float sr           = float(std::max(getSampleRate(), 1.0));
+        const float atk_ms       = p_attack_ ->load();
+        const float rel_ms       = p_release_->load();
+        const float alpha_a      = 1.0f - std::exp(-1.0f / (atk_ms * 0.001f * sr));
+        const float alpha_r      = 1.0f - std::exp(-1.0f / (rel_ms * 0.001f * sr));
+        const NoiseMode mode     = static_cast<NoiseMode>(juce::roundToInt(p_mode_->load()));
+
+        for (int i = 0; i < ns; ++i) {
+            left [i] = process_ola_sample(ola_l_, spect_noise_l_, left [i],
+                                          mod, mix, threshold_lin,
+                                          alpha_a, alpha_r, mode, output_lin);
+            right[i] = process_ola_sample(ola_r_, spect_noise_r_, right[i],
+                                          mod, mix, threshold_lin,
+                                          alpha_a, alpha_r, mode, output_lin);
+        }
+    } else {
+        dsp_.process(left, right, ns);
+    }
+
+    // Expose last output sample for the editor strip chart (30 Hz read).
+    if (ns > 0) {
+        const float mono = 0.5f * (left[ns - 1] + right[ns - 1]);
+        output_sample_.store(mono, std::memory_order_relaxed);
+    }
+}
+
+// ── Spectral OLA ──────────────────────────────────────────────────────────────
+
+float NoisePlugin::process_ola_sample(OlaChannel& ch, NoiseChannel& noise_ch,
+                                       float in,  float mod,  float mix,
+                                       float threshold_lin,
+                                       float gate_alpha_a, float gate_alpha_r,
+                                       NoiseMode mode, float output_lin)
+{
+    // Gate envelope (mirrors noise_processor.cpp logic, but per-OLA-channel).
+    if (mode == NoiseMode::AlwaysOn) {
+        ch.gate_smooth_ = 1.0f;
+    } else {
+        const float level  = std::abs(in);
+        float target;
+        if (mode == NoiseMode::Follow)
+            target = (level > threshold_lin) ? level : 0.0f;
+        else  // Gated
+            target = (level > threshold_lin) ? 1.0f : 0.0f;
+        const float alpha = (target > ch.gate_env_) ? gate_alpha_a : gate_alpha_r;
+        ch.gate_env_ += alpha * (target - ch.gate_env_);
+        ch.gate_smooth_ = ch.gate_env_;
+    }
+
+    // Effective injection depth scales with gate.
+    const float eff_mod = mod * ch.gate_smooth_;
+
+    // Dry delay: read-then-write so output is delayed exactly kSpectHop samples.
+    const float dry = ch.dry_buf_[ch.dry_pos_];
+    ch.dry_buf_[ch.dry_pos_] = in;
+    ch.dry_pos_ = (ch.dry_pos_ + 1) % kSpectHop;
+
+    // Input ring buffer.
+    ch.in_buf_[ch.in_pos_] = in;
+    ch.in_pos_ = (ch.in_pos_ + 1) % kSpectSize;
+    ++ch.hop_count_;
+
+    // Trigger FFT frame every kSpectHop input samples.
+    if (ch.hop_count_ >= kSpectHop) {
+        ch.hop_count_ = 0;
+        process_ola_frame(ch, noise_ch, eff_mod);
+    }
+
+    // Read OLA output sample and clear the slot for future overlap-add.
+    const float wet = ch.out_buf_[ch.out_read_];
+    ch.out_buf_[ch.out_read_] = 0.0f;
+    ch.out_read_ = (ch.out_read_ + 1) % (kSpectSize * 2);
+
+    return output_lin * ((1.0f - mix) * dry + mix * wet);
+}
+
+void NoisePlugin::process_ola_frame(OlaChannel& ch, NoiseChannel& noise_ch, float mod)
+{
+    // Build analysis frame: last kSpectSize samples with Hann window.
+    // in_pos_ now points to the oldest sample (ring buffer just advanced past it).
+    for (int i = 0; i < kSpectSize; ++i) {
+        const int ri = (ch.in_pos_ + i) % kSpectSize;
+        ch.fft_buf_[i] = ch.in_buf_[ri] * hann_win_[i];
+    }
+    // Zero scratch space required by JUCE FFT.
+    std::fill(ch.fft_buf_ + kSpectSize, ch.fft_buf_ + kSpectSize * 2, 0.0f);
+
+    // Forward FFT → packed-real format:
+    //   fft_buf[0]    = re(DC)
+    //   fft_buf[1]    = re(Nyquist)   (packed in im slot of DC)
+    //   fft_buf[2k]   = re(k),  fft_buf[2k+1] = im(k)  for k = 1..N/2-1
+    spect_fft_.performRealOnlyForwardTransform(ch.fft_buf_, false);
+
+    // Modify each bin: X_k *= (1 + mod * n_k).
+    // Scaling both re and im by the same real factor preserves phase.
+    ch.fft_buf_[0] *= (1.0f + mod * noise_ch.randbi());  // DC
+    ch.fft_buf_[1] *= (1.0f + mod * noise_ch.randbi());  // Nyquist
+    for (int k = 1; k < kSpectSize / 2; ++k) {
+        const float scale = 1.0f + mod * noise_ch.randbi();
+        ch.fft_buf_[2*k]   *= scale;
+        ch.fft_buf_[2*k+1] *= scale;
+    }
+
+    // Inverse FFT: reconstructs conjugate half from [0..N] automatically.
+    // JUCE normalises by 1/N so IFFT(FFT(x)) = x.
+    spect_fft_.performRealOnlyInverseTransform(ch.fft_buf_);
+
+    // OLA: overlap-add synthesised frame into output accumulator.
+    // Analysis-window-only OLA: with Hann at 50% overlap,
+    // sum of windows = 1 everywhere — no synthesis window or scaling needed.
+    for (int i = 0; i < kSpectSize; ++i) {
+        const int oi = (ch.out_write_ + i) % (kSpectSize * 2);
+        ch.out_buf_[oi] += ch.fft_buf_[i];
+    }
+    ch.out_write_ = (ch.out_write_ + kSpectHop) % (kSpectSize * 2);
 }
 
 // ── State ──────────────────────────────────────────────────────────────────────
