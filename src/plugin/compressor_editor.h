@@ -54,19 +54,15 @@ private:
 
     // ── Layout ───────────────────────────────────────────────────────────────
     static constexpr int kWidth      = 700;
-    static constexpr int kHeight     = 340;
+    static constexpr int kHeight     = 288;
     static constexpr int kComboY     = 8;
     static constexpr int kComboH     = 22;
     static constexpr int kComboW     = 110;
-    static constexpr int kSep1Y      = kComboY + kComboH + 6;
-    static constexpr int kDisplayY   = kSep1Y + 4;
+    static constexpr int kDisplayY   = kComboY + kComboH + 8;
     static constexpr int kDisplayH   = 140;      // transfer function
     static constexpr int kMeterW     = 44;        // GR meter strip
-    static constexpr int kSep2Y      = kDisplayY + kDisplayH + 4;
-    static constexpr int kLabelY     = kSep2Y + 6;
-    static constexpr int kLabelH     = 13;
-    static constexpr int kKnobY      = kLabelY + kLabelH + 4;
-    static constexpr int kKnobSize   = 64;
+    static constexpr int kKnobY      = kDisplayY + kDisplayH + 14;
+    static constexpr int kKnobSize   = 54;
     static constexpr int kKnobLabelH = 13;
     static constexpr int kPadX       = 14;
     static constexpr int kNumCols    = 8;         // THRESH RATIO KNEE ATK REL MAKEUP OUT MIX

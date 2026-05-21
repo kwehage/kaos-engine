@@ -58,20 +58,19 @@ private:
 
     // ── Layout constants ───────────────────────────────────────────────────────
     static constexpr int kWidth         = 780;
-    static constexpr int kHeight        = 385;
+    static constexpr int kHeight        = 348;
     static constexpr int kAlgoY         = 12;
     static constexpr int kAlgoH         = 24;
     static constexpr int kAlgoW         = 120;
     static constexpr int kKnobY         = 52;
-    static constexpr int kKnobSize      = 76;
+    static constexpr int kKnobSize      = 54;
     static constexpr int kLabelH        = 16;
     static constexpr int kPadX          = 20;
     static constexpr int kFooterH       = 16;
-    static constexpr int kFilterSepY    = 149;
-    static constexpr int kFilterHeaderY = 157;
-    static constexpr int kFilterDisplayY= 183;
+    static constexpr int kFilterHeaderY = 133;   // 9px after knob label row
+    static constexpr int kFilterDisplayY= 159;   // kFilterHeaderY + 22 + 4
     static constexpr int kFilterDisplayH= 80;
-    static constexpr int kFilterKnobY   = 271;
+    static constexpr int kFilterKnobY   = 247;   // kFilterDisplayY + kFilterDisplayH + 8
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ReverbEditor)
 };

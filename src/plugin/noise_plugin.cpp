@@ -31,8 +31,10 @@ NoisePlugin::make_params()
 
     p.push_back(std::make_unique<AudioParameterChoice>(
         ParameterID{kType, 1}, "Noise Type",
-        StringArray{"White", "Pink", "Brown", "Granular",
-                    "Residual", "Coupled", "Diffuse"}, 0));
+        StringArray{"White", "Pink", "Blue", "Brown",
+                    "Granular", "FeedbackComb", "Simplex",
+                    "Lorenz", "Duffing", "Gendyn", "HarshWall", "Chua",
+                    "Residual", "Coupled", "Diffuse", "Modal", "SimplexDriven"}, 0));
 
     p.push_back(std::make_unique<AudioParameterChoice>(
         ParameterID{kMode, 1}, "Mode",
@@ -40,7 +42,7 @@ NoisePlugin::make_params()
 
     p.push_back(std::make_unique<AudioParameterChoice>(
         ParameterID{kBlend, 1}, "Blend",
-        StringArray{"Add", "AM", "Saturate", "Spectral"}, 0));
+        StringArray{"Add", "AM", "Saturate", "Spectral", "Phase Random", "Ring Mod", "Infrasonic AM", "Roughness"}, 0));
 
     {
         NormalisableRange<float> r(0.0f, 1.0f, 0.001f);
@@ -188,7 +190,7 @@ void NoisePlugin::processBlock(juce::AudioBuffer<float>& buf,
                           std::memory_order_relaxed);
     }
 
-    if (blend == NoiseBlend::Spectral) {
+    if (blend == NoiseBlend::Spectral || blend == NoiseBlend::PhaseRandom) {
         const float mod          = p_mod_      ->load();
         const float mix          = p_mix_      ->load();
         const float output_lin   = std::pow(10.0f, p_output_->load() * 0.05f);
@@ -203,10 +205,10 @@ void NoisePlugin::processBlock(juce::AudioBuffer<float>& buf,
         for (int i = 0; i < ns; ++i) {
             left [i] = process_ola_sample(ola_l_, spect_noise_l_, left [i],
                                           mod, mix, threshold_lin,
-                                          alpha_a, alpha_r, mode, output_lin);
+                                          alpha_a, alpha_r, mode, output_lin, blend);
             right[i] = process_ola_sample(ola_r_, spect_noise_r_, right[i],
                                           mod, mix, threshold_lin,
-                                          alpha_a, alpha_r, mode, output_lin);
+                                          alpha_a, alpha_r, mode, output_lin, blend);
         }
     } else {
         dsp_.process(left, right, ns);
@@ -225,7 +227,7 @@ float NoisePlugin::process_ola_sample(OlaChannel& ch, NoiseChannel& noise_ch,
                                        float in,  float mod,  float mix,
                                        float threshold_lin,
                                        float gate_alpha_a, float gate_alpha_r,
-                                       NoiseMode mode, float output_lin)
+                                       NoiseMode mode, float output_lin, NoiseBlend blend)
 {
     // Gate envelope (mirrors noise_processor.cpp logic, but per-OLA-channel).
     if (mode == NoiseMode::AlwaysOn) {
@@ -258,7 +260,7 @@ float NoisePlugin::process_ola_sample(OlaChannel& ch, NoiseChannel& noise_ch,
     // Trigger FFT frame every kSpectHop input samples.
     if (ch.hop_count_ >= kSpectHop) {
         ch.hop_count_ = 0;
-        process_ola_frame(ch, noise_ch, eff_mod);
+        process_ola_frame(ch, noise_ch, eff_mod, blend);
     }
 
     // Read OLA output sample and clear the slot for future overlap-add.
@@ -269,31 +271,41 @@ float NoisePlugin::process_ola_sample(OlaChannel& ch, NoiseChannel& noise_ch,
     return output_lin * ((1.0f - mix) * dry + mix * wet);
 }
 
-void NoisePlugin::process_ola_frame(OlaChannel& ch, NoiseChannel& noise_ch, float mod)
+void NoisePlugin::process_ola_frame(OlaChannel& ch, NoiseChannel& noise_ch,
+                                     float mod, NoiseBlend blend)
 {
-    // Build analysis frame: last kSpectSize samples with Hann window.
-    // in_pos_ now points to the oldest sample (ring buffer just advanced past it).
     for (int i = 0; i < kSpectSize; ++i) {
         const int ri = (ch.in_pos_ + i) % kSpectSize;
         ch.fft_buf_[i] = ch.in_buf_[ri] * hann_win_[i];
     }
-    // Zero scratch space required by JUCE FFT.
     std::fill(ch.fft_buf_ + kSpectSize, ch.fft_buf_ + kSpectSize * 2, 0.0f);
 
-    // Forward FFT → packed-real format:
-    //   fft_buf[0]    = re(DC)
-    //   fft_buf[1]    = re(Nyquist)   (packed in im slot of DC)
-    //   fft_buf[2k]   = re(k),  fft_buf[2k+1] = im(k)  for k = 1..N/2-1
     spect_fft_.performRealOnlyForwardTransform(ch.fft_buf_, false);
 
-    // Modify each bin: X_k *= (1 + mod * n_k).
-    // Scaling both re and im by the same real factor preserves phase.
-    ch.fft_buf_[0] *= (1.0f + mod * noise_ch.randbi());  // DC
-    ch.fft_buf_[1] *= (1.0f + mod * noise_ch.randbi());  // Nyquist
-    for (int k = 1; k < kSpectSize / 2; ++k) {
-        const float scale = 1.0f + mod * noise_ch.randbi();
-        ch.fft_buf_[2*k]   *= scale;
-        ch.fft_buf_[2*k+1] *= scale;
+    if (blend == NoiseBlend::PhaseRandom) {
+        // Rotate each bin's phase by a random amount scaled by mod.
+        // Magnitudes are preserved; only temporal coherence is destroyed.
+        // DC and Nyquist are real-only — randomly flip sign at full mod.
+        if (noise_ch.randbi() < (mod * 2.0f - 1.0f)) ch.fft_buf_[0] = -ch.fft_buf_[0];
+        if (noise_ch.randbi() < (mod * 2.0f - 1.0f)) ch.fft_buf_[1] = -ch.fft_buf_[1];
+        for (int k = 1; k < kSpectSize / 2; ++k) {
+            const float re  = ch.fft_buf_[2*k];
+            const float im  = ch.fft_buf_[2*k+1];
+            const float mag = std::sqrt(re*re + im*im);
+            if (mag < 1e-10f) continue;
+            const float phi = std::atan2(im, re) + mod * noise_ch.randbi() * float(M_PI);
+            ch.fft_buf_[2*k]   = mag * std::cos(phi);
+            ch.fft_buf_[2*k+1] = mag * std::sin(phi);
+        }
+    } else {
+        // Spectral blend: scale each bin magnitude by (1 + mod * noise).
+        ch.fft_buf_[0] *= (1.0f + mod * noise_ch.randbi());
+        ch.fft_buf_[1] *= (1.0f + mod * noise_ch.randbi());
+        for (int k = 1; k < kSpectSize / 2; ++k) {
+            const float scale = 1.0f + mod * noise_ch.randbi();
+            ch.fft_buf_[2*k]   *= scale;
+            ch.fft_buf_[2*k+1] *= scale;
+        }
     }
 
     // Inverse FFT: reconstructs conjugate half from [0..N] automatically.

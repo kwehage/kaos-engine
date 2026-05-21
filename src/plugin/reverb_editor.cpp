@@ -32,11 +32,7 @@ ReverbEditor::ReverbEditor(ReverbPlugin& plugin)
     algo_box_.onChange = [this] { update_algo_ui(); };
 
     // Equation label (to the right of combo)
-    algo_eq_label_.setFont(Font(10.5f));
-    algo_eq_label_.setJustificationType(Justification::centredLeft);
-    algo_eq_label_.setColour(Label::textColourId,       Colour(laf_.text_muted()));
-    algo_eq_label_.setColour(Label::backgroundColourId, Colour(0x00000000));
-    addAndMakeVisible(algo_eq_label_);
+    // algo_eq_label_ not shown -- description routed to algo_box_ tooltip in update_algo_ui().
 
     // Main knobs
     setup_knob(pre_delay_knob_, pre_delay_label_, "PRE-DELAY");
@@ -142,12 +138,12 @@ ReverbEditor::~ReverbEditor()
 void ReverbEditor::setup_knob(Slider& knob, Label& label, const String& name)
 {
     knob.setSliderStyle(Slider::RotaryVerticalDrag);
-    knob.setTextBoxStyle(Slider::TextBoxBelow, false, 60, 14);
+    knob.setTextBoxStyle(Slider::TextBoxBelow, false, 54, 13);
     knob.setPopupDisplayEnabled(true, false, this);
     addAndMakeVisible(knob);
 
     label.setText(name, dontSendNotification);
-    label.setFont(Font(10.0f));
+    label.setFont(Font(8.5f));
     label.setJustificationType(Justification::centred);
     label.setColour(Label::textColourId, Colour(laf_.text_primary()));
     addAndMakeVisible(label);
@@ -160,7 +156,6 @@ void ReverbEditor::resized()
 
     // Algorithm selector + equation
     algo_box_.setBounds(kPadX, kAlgoY, kAlgoW, kAlgoH);
-    algo_eq_label_.setBounds(kPadX + kAlgoW + 10, kAlgoY, w - kPadX - kAlgoW - 20, kAlgoH);
 
     // 9 knobs across the top section
     const int num_knobs = 9;
@@ -202,12 +197,6 @@ void ReverbEditor::paint(Graphics& g)
 {
     g.fillAll(Colour(laf_.background()));
 
-    // Separator above knobs
-    g.setColour(Colour(laf_.border()));
-    g.fillRect(kPadX, kKnobY - 8, getWidth() - kPadX * 2, 1);
-
-    // Separator above filter section
-    g.fillRect(kPadX, kFilterSepY, getWidth() - kPadX * 2, 1);
 
     // Filter frequency response display
     const Rectangle<int> display(kPadX, kFilterDisplayY,
@@ -495,8 +484,7 @@ void ReverbEditor::update_algo_ui()
 
     const int idx = algo_box_.getSelectedItemIndex();
     if (idx >= 0 && idx < 7) {
-        algo_eq_label_.setText(kInfo[idx].desc, juce::dontSendNotification);
-        algo_eq_label_.setTooltip(kInfo[idx].tip);
+        algo_box_.setTooltip(kInfo[idx].tip);
     }
 }
 

@@ -60,18 +60,18 @@ private:
     // Row 3 (y=kKnobY3): PITCH, DETUNE per voice (NoTextBox, rotary_h = kKnobSize-14)
     // Row 4 (y=kTextBoxY): editable value boxes for PITCH and DETUNE
     static constexpr int kWidth    = 760;
-    static constexpr int kHeight   = 400;
+    static constexpr int kHeight   = 337;
     static constexpr int kAlgoY    = 12;
     static constexpr int kAlgoH    = 24;
     static constexpr int kAlgoW    = 140;
     static constexpr int kSepY     = 46;
     static constexpr int kHdrY     = 50;
     static constexpr int kKnobY1   = 66;   // GAIN row
-    static constexpr int kKnobY2   = 166;  // MOD 1 / MOD 2 row  (66+76+2+16+6)
-    static constexpr int kKnobY3   = 266;  // PITCH / DETUNE row  (166+76+2+16+6)
-    static constexpr int kTextBoxY = 352;  // text boxes          (266+62+2+16+6)
+    static constexpr int kKnobY2   = 144;  // MOD 1 / MOD 2 row  (66+54+2+16+6)
+    static constexpr int kKnobY3   = 222;  // PITCH / DETUNE row  (144+54+2+16+6)
+    static constexpr int kTextBoxY = 286;  // text boxes          (222+40+2+16+6)
     static constexpr int kTextBoxH = 22;
-    static constexpr int kKnobSize = 76;
+    static constexpr int kKnobSize = 54;
     static constexpr int kLabelH   = 16;
     static constexpr int kPadX     = 20;
     static constexpr int kFooterH  = 16;

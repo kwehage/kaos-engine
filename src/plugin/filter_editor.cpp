@@ -48,11 +48,7 @@ FilterEditor::FilterEditor(FilterPlugin& plugin)
         ap, "mode", mode_box_);
     mode_box_.onChange = [this] { update_mode_ui(); };
 
-    mode_label_.setFont(Font(10.5f));
-    mode_label_.setJustificationType(Justification::centredLeft);
-    mode_label_.setColour(Label::textColourId, Colour(laf_.text_muted()));
-    mode_label_.setInterceptsMouseClicks(false, false);
-    addAndMakeVisible(mode_label_);
+    // mode_label_ not shown -- description routed to mode_box_ tooltip in update_mode_ui().
 
     setup_knob(cutoff_knob_,    cutoff_lbl_,    "CUTOFF");
     setup_knob(resonance_knob_, resonance_lbl_, "RESONANCE");
@@ -137,7 +133,7 @@ void FilterEditor::update_mode_ui()
 {
     const int idx = mode_box_.getSelectedItemIndex();
     if (idx >= 0 && idx < 12)
-        mode_label_.setText(kModeLabels[idx], dontSendNotification);
+        mode_box_.setTooltip(kModeLabels[idx]);
 
     // GAIN only active for Peak / LowShelf / HiShelf
     const bool gain_active = (idx == 7 || idx == 8 || idx == 9);
@@ -152,9 +148,7 @@ void FilterEditor::resized()
     const int w    = getWidth();
     const int colw = (w - kPadX * 2) / kNumCols;
 
-    mode_box_  .setBounds(kPadX, kComboY, kComboW, kComboH);
-    mode_label_.setBounds(kPadX + kComboW + 8, kComboY,
-                          w - kPadX - kComboW - 14, kComboH);
+    mode_box_.setBounds(kPadX, kComboY, kComboW, kComboH);
 
     auto kx = [&](int col) { return kPadX + col * colw + colw / 2 - kKnobSize / 2; };
     auto lx = [&](int col) { return kPadX + col * colw + colw / 2 - 36; };
@@ -299,23 +293,6 @@ void FilterEditor::paint(Graphics& g)
     g.fillAll(Colour(laf_.background()));
 
     draw_response(g, Rectangle<int>(0, kDispY, kWidth, kDispH));
-
-    // Knob column header labels
-    const int w    = getWidth();
-    const int colw = (w - kPadX * 2) / kNumCols;
-    const char* col_labels[] = { "CUTOFF", "RESONANCE", "DRIVE", "GAIN", "MIX", "OUTPUT" };
-    g.setFont(Font(8.5f, Font::bold));
-    g.setColour(Colour(laf_.text_muted()));
-    for (int c = 0; c < kNumCols; ++c) {
-        const int cx = kPadX + c * colw + colw / 2;
-        g.drawText(col_labels[c], cx - 36, kLabelY, 72, kLabelH, Justification::centred);
-    }
-
-    // Separator lines
-    g.setColour(Colour(laf_.border()));
-    g.fillRect(kPadX, kSep1Y, w - kPadX * 2, 1);
-    g.fillRect(kPadX, kSep2Y, w - kPadX * 2, 1);
-    g.fillRect(kPadX, kSep3Y, w - kPadX * 2, 1);
 
     // Footer
     g.setFont(Font(12.0f));

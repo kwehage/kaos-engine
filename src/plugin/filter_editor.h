@@ -66,22 +66,17 @@ private:
 
     // ── Layout ────────────────────────────────────────────────────────────────
     static constexpr int kWidth     = 600;
-    static constexpr int kHeight    = 300;
+    static constexpr int kHeight    = 268;
     static constexpr int kComboY    = 8;
     static constexpr int kComboH    = 22;
     static constexpr int kComboW    = 110;
-    static constexpr int kSep1Y     = kComboY + kComboH + 6;
-    static constexpr int kDispY     = kSep1Y + 4;
+    static constexpr int kDispY     = kComboY + kComboH + 8;
     static constexpr int kDispH     = 120;
-    static constexpr int kSep2Y     = kDispY + kDispH + 4;
-    static constexpr int kLabelY    = kSep2Y + 6;
-    static constexpr int kLabelH    = 13;
-    static constexpr int kKnobY     = kLabelY + kLabelH + 4;
+    static constexpr int kKnobY     = kDispY + kDispH + 14;
     static constexpr int kKnobSize  = 54;
     static constexpr int kKnobLblH  = 13;
     static constexpr int kNumCols   = 6;   // CUTOFF RESONANCE DRIVE GAIN MIX OUTPUT
     static constexpr int kPadX      = 14;
-    static constexpr int kSep3Y     = kKnobY + kKnobSize + kKnobLblH + 4;
     static constexpr int kFooterH   = 16;
 
     // Response display dB range

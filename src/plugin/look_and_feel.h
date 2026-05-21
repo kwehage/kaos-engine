@@ -76,6 +76,12 @@ public:
                                           juce::Point<int> screenPos,
                                           juce::Rectangle<int> parentArea) override;
 
+    // ── Shared knob layout constants (use in all plugin editors) ─────────────
+    static constexpr int   kKnobSize      = 54;
+    static constexpr int   kKnobTextBoxH  = 13;
+    static constexpr int   kKnobLabelH    = 13;
+    static constexpr float kKnobLabelFont = 8.5f;
+
 private:
     ColourPalette p_;
     juce::Font    plugin_font_;

@@ -106,7 +106,7 @@ private:
 
     // ── Layout ────────────────────────────────────────────────────────────────
     static constexpr int kWidth      = 700;
-    static constexpr int kHeight     = 440;
+    static constexpr int kHeight     = 422;
     static constexpr int kDisplayH   = 160;
     static constexpr int kTypeLblY   = kDisplayH + 4;
     static constexpr int kTypeLblH   = 13;
@@ -115,7 +115,7 @@ private:
     static constexpr int kKnobY1     = kSepY + 6;
     static constexpr int kKnobY2     = kKnobY1 + kKnobRowH;
     static constexpr int kKnobY3     = kKnobY2 + kKnobRowH;
-    static constexpr int kKnobSize   = 52;
+    static constexpr int kKnobSize   = 54;
     static constexpr int kLabelH     = 13;
     static constexpr int kPadX       = 14;
     static constexpr int kFooterH    = 16;

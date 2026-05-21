@@ -55,14 +55,14 @@ private:
 
     // ── Layout constants ───────────────────────────────────────────────────
     static constexpr int kWidth         = 630;
-    static constexpr int kHeight        = 385;
+    static constexpr int kHeight        = 370;
 
     // Waveshaper section
     static constexpr int kModeY         = 12;
     static constexpr int kModeH         = 24;
     static constexpr int kModeW         = 160;
     static constexpr int kKnobY         = 52;
-    static constexpr int kKnobSize      = 76;
+    static constexpr int kKnobSize      = 54;
     static constexpr int kLabelH        = 16;
     static constexpr int kPadX          = 20;
     static constexpr int kFooterH       = 16;

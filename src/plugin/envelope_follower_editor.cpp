@@ -23,17 +23,13 @@ EnvelopeFollowerEditor::EnvelopeFollowerEditor(EnvelopeFollowerPlugin& plugin)
     detector_attach_ = std::make_unique<AudioProcessorValueTreeState::ComboBoxAttachment>(
         ap, "detector", detector_box_);
 
-    detector_label_.setFont(Font(10.5f));
-    detector_label_.setJustificationType(Justification::centredLeft);
-    detector_label_.setColour(Label::textColourId, Colour(laf_.text_muted()));
-    detector_label_.setInterceptsMouseClicks(false, false);
-    addAndMakeVisible(detector_label_);
     detector_box_.onChange = [this] {
         const int idx = detector_box_.getSelectedItemIndex();
-        detector_label_.setText(
-            idx == 0 ? "Peak -- rectifies and smooths. Fast transient response."
-                     : "RMS  -- tracks signal power (perceived loudness). Smoother, less sensitive to spikes.",
-            dontSendNotification);
+        detector_box_.setTooltip(
+            idx == 0 ? "Peak: rectifies and smooths. Fast transient response. "
+                       "Best when transient tracking speed matters."
+                     : "RMS: tracks signal power (perceived loudness). "
+                       "Smoother, less sensitive to spikes. Preferred for musical use.");
     };
     detector_box_.onChange();
 
@@ -49,22 +45,18 @@ EnvelopeFollowerEditor::EnvelopeFollowerEditor(EnvelopeFollowerPlugin& plugin)
         ap, "output_shape", shape_box_);
     shape_box_.onChange = [this] {
         static const char* descs[5] = {
-            "Follow -- CV tracks envelope directly. Louder input = higher CV.",
-            "Duck   -- inverted; silent input = high CV, loud = low CV. Classic sidechain ducking.",
-            "Rise   -- outputs only while signal is rising (attack detector). 0 during decay.",
-            "Fall   -- outputs only while signal is falling (decay/release detector). 0 during attack.",
-            "Release -- rises 0->1 as signal falls from its peak back to silence. "
-                       "0 during attack and sustain; starts after signal begins decaying.",
+            "Follow: CV tracks envelope directly. Louder input = higher CV.",
+            "Duck: inverted -- silent input = high CV, loud = low CV. Classic sidechain ducking.",
+            "Rise: outputs only while signal is rising (attack phase). 0 during decay.",
+            "Fall: outputs only while signal is falling (release phase). 0 during attack.",
+            "Release: rises 0->1 as signal falls from its peak back to silence. "
+                      "0 during attack and sustain; starts after signal begins decaying.",
         };
         const int idx = shape_box_.getSelectedItemIndex();
         if (idx >= 0 && idx < 5)
-            shape_label_.setText(descs[idx], dontSendNotification);
+            shape_box_.setTooltip(descs[idx]);
     };
-    shape_label_.setFont(Font(10.0f));
-    shape_label_.setJustificationType(Justification::centredLeft);
-    shape_label_.setColour(Label::textColourId, Colour(laf_.text_muted()));
-    shape_label_.setInterceptsMouseClicks(false, false);
-    addAndMakeVisible(shape_label_);
+    // shape_label_ not shown -- description routed to shape_box_ tooltip.
     shape_box_.onChange();
 
     // Output mode combo
@@ -82,9 +74,6 @@ EnvelopeFollowerEditor::EnvelopeFollowerEditor(EnvelopeFollowerPlugin& plugin)
     setup_knob(release_knob_, release_lbl_, "RELEASE");
     setup_knob(gain_knob_,    gain_lbl_,    "GAIN");
     setup_knob(depth_knob_,   depth_lbl_,   "DEPTH");
-    setup_knob(cc_num_knob_,  cc_num_lbl_,  "CC NUM");
-    setup_knob(cc_ch_knob_,   cc_ch_lbl_,   "CC CH");
-
     attack_knob_ .setTooltip("Attack: time for envelope to respond to a rising signal. "
                               "Short = catches transients fast. Range 0.1-500 ms.");
     release_knob_.setTooltip("Release: time for envelope to decay after signal drops. "
@@ -92,15 +81,42 @@ EnvelopeFollowerEditor::EnvelopeFollowerEditor(EnvelopeFollowerPlugin& plugin)
     gain_knob_   .setTooltip("Gain: pre-detection input scaling (0.1x to 20x). "
                               "Increase to make quiet signals fill the output range.");
     depth_knob_  .setTooltip("Depth: output scale. 0 = no output, 1 = full 0..+1 range.");
-    cc_num_knob_ .setTooltip("CC Number: MIDI CC number (0-127).");
-    cc_ch_knob_  .setTooltip("CC Channel: MIDI channel (1-16).");
 
-    attack_att_  = std::make_unique<Attachment>(ap, "attack",      attack_knob_);
-    release_att_ = std::make_unique<Attachment>(ap, "release",     release_knob_);
-    gain_att_    = std::make_unique<Attachment>(ap, "gain",        gain_knob_);
-    depth_att_   = std::make_unique<Attachment>(ap, "depth",       depth_knob_);
-    cc_num_att_  = std::make_unique<Attachment>(ap, "cc_number",   cc_num_knob_);
-    cc_ch_att_   = std::make_unique<Attachment>(ap, "cc_channel",  cc_ch_knob_);
+    attack_att_  = std::make_unique<Attachment>(ap, "attack",  attack_knob_);
+    release_att_ = std::make_unique<Attachment>(ap, "release", release_knob_);
+    gain_att_    = std::make_unique<Attachment>(ap, "gain",    gain_knob_);
+    depth_att_   = std::make_unique<Attachment>(ap, "depth",   depth_knob_);
+
+    // CC text fields
+    auto setup_cc = [&](Label& field, Label& lbl, const char* name,
+                        const char* param_id, int lo, int hi) {
+        field.setEditable(true, true, false);
+        field.setJustificationType(Justification::centred);
+        field.setFont(Font(14.0f));
+        field.setColour(Label::textColourId,       Colour(laf_.text_primary()));
+        field.setColour(Label::backgroundColourId, Colour(laf_.surface()));
+        field.setColour(Label::outlineColourId,    Colour(laf_.border()));
+        addAndMakeVisible(field);
+        lbl.setText(name, dontSendNotification);
+        lbl.setFont(Font(8.5f));
+        lbl.setJustificationType(Justification::centred);
+        lbl.setColour(Label::textColourId, Colour(laf_.text_primary()));
+        addAndMakeVisible(lbl);
+        auto* p = ap.getParameter(param_id);
+        if (p) field.setText(String(juce::roundToInt(p->convertFrom0to1(p->getValue()))),
+                              dontSendNotification);
+        field.onTextChange = [&field, &ap, param_id, lo, hi] {
+            const int v = juce::jlimit(lo, hi,
+                              juce::roundToInt(field.getText().getFloatValue()));
+            field.setText(String(v), dontSendNotification);
+            if (auto* p2 = ap.getParameter(param_id))
+                p2->setValueNotifyingHost(p2->convertTo0to1(float(v)));
+        };
+    };
+    setup_cc(cc_num_field_, cc_num_lbl_, "CC NUM", "cc_number",  0, 127);
+    setup_cc(cc_ch_field_,  cc_ch_lbl_,  "CC CH",  "cc_channel", 1, 16);
+    cc_num_field_.setTooltip("CC Number: MIDI CC number (0-127).");
+    cc_ch_field_ .setTooltip("CC Channel: MIDI channel (1-16).");
 
     update_mode_ui();
     startTimerHz(30);
@@ -134,14 +150,25 @@ void EnvelopeFollowerEditor::timerCallback()
     trail_write_ = (trail_write_ + 1) % kTrailSize;
     if (trail_count_ < kTrailSize) ++trail_count_;
     repaint(0, kDispY, kWidth, kDispH);
+    auto& ap = plugin_.get_apvts();
+    auto refresh_cc = [&](Label& field, const char* param_id) {
+        if (!field.isBeingEdited())
+            if (auto* p = ap.getParameter(param_id))
+                field.setText(String(juce::roundToInt(p->convertFrom0to1(p->getValue()))),
+                              dontSendNotification);
+    };
+    refresh_cc(cc_num_field_, "cc_number");
+    refresh_cc(cc_ch_field_,  "cc_channel");
 }
 
 void EnvelopeFollowerEditor::update_mode_ui()
 {
     const int  out_mode = out_box_.getSelectedItemIndex();
     const bool show_cc  = (out_mode == 0 || out_mode == 2);
-    cc_num_knob_.setEnabled(show_cc); cc_num_knob_.setAlpha(show_cc ? 1.0f : 0.4f);
-    cc_ch_knob_ .setEnabled(show_cc); cc_ch_knob_ .setAlpha(show_cc ? 1.0f : 0.4f);
+    cc_num_field_.setEnabled(show_cc); cc_num_field_.setAlpha(show_cc ? 1.0f : 0.4f);
+    cc_num_lbl_  .setAlpha(show_cc ? 1.0f : 0.4f);
+    cc_ch_field_ .setEnabled(show_cc); cc_ch_field_ .setAlpha(show_cc ? 1.0f : 0.4f);
+    cc_ch_lbl_   .setAlpha(show_cc ? 1.0f : 0.4f);
 }
 
 // ── Layout ─────────────────────────────────────────────────────────────────────
@@ -151,13 +178,10 @@ void EnvelopeFollowerEditor::resized()
     const int w    = getWidth();
     const int colw = (w - kPadX * 2) / kNumCols;
 
-    // Top row: Detector | shape combo | shape description
-    detector_box_  .setBounds(kPadX,              kComboY, kComboW,      kComboH);
-    shape_box_     .setBounds(kPadX + kComboW + 6, kComboY, kComboW + 20, kComboH);
-    detector_label_.setBounds(kPadX,              kComboY + kComboH + 2,
-                               w - kPadX * 2,    kComboH);
-    shape_label_   .setBounds(kPadX,              kComboY + kComboH * 2 + 4,
-                               w - kPadX * 2,    kComboH);
+    // All combos in one top row; OUTPUT right-justified
+    detector_box_.setBounds(kPadX,               kComboY, kComboW,       kComboH);
+    shape_box_   .setBounds(kPadX + kComboW + 8, kComboY, kComboW + 20,  kComboH);
+    out_box_     .setBounds(w - kPadX - 160,     kComboY, 160,           kComboH);
 
     auto kx = [&](int col) { return kPadX + col * colw + colw / 2 - kKnobSize / 2; };
     auto lx = [&](int col) { return kPadX + col * colw + colw / 2 - 36; };
@@ -168,11 +192,19 @@ void EnvelopeFollowerEditor::resized()
     place(attack_knob_,  attack_lbl_,  0);
     place(release_knob_, release_lbl_, 1);
     place(gain_knob_,    gain_lbl_,    2);
-    place(depth_knob_,   depth_lbl_,   3);
-    place(cc_num_knob_,  cc_num_lbl_,  4);
-    place(cc_ch_knob_,   cc_ch_lbl_,   5);
+    place(depth_knob_,  depth_lbl_,  3);
 
-    out_box_.setBounds(kPadX, kCtrlY, 160, kCtrlH);
+    auto place_cc = [&](Label& field, Label& lbl, int col) {
+        const int fx = kPadX + col * colw + colw / 2 - 27;
+        const int fy = kKnobY + (kKnobSize - 28) / 2;
+        field.setBounds(fx, fy, 54, 28);
+        lbl.setBounds(kPadX + col * colw + colw / 2 - 36,
+                      kKnobY + kKnobSize + 1, 72, kKnobLabelH);
+    };
+    place_cc(cc_num_field_, cc_num_lbl_, 4);
+    place_cc(cc_ch_field_,  cc_ch_lbl_,  5);
+
+    // (out_box_ moved to top row above)
 }
 
 // ── Painting ───────────────────────────────────────────────────────────────────
@@ -182,21 +214,6 @@ void EnvelopeFollowerEditor::paint(Graphics& g)
     g.fillAll(Colour(laf_.background()));
 
     draw_strip_chart(g, Rectangle<int>(0, kDispY, kWidth, kDispH));
-
-    const int w    = getWidth();
-    const int colw = (w - kPadX * 2) / kNumCols;
-    const char* col_labels[] = { "ATTACK", "RELEASE", "GAIN", "DEPTH", "CC NUM", "CC CH" };
-    g.setFont(Font(8.5f, Font::bold));
-    g.setColour(Colour(laf_.text_muted()));
-    for (int c = 0; c < kNumCols; ++c) {
-        const int cx = kPadX + c * colw + colw / 2;
-        g.drawText(col_labels[c], cx - 36, kLabelY, 72, kLabelH, Justification::centred);
-    }
-
-    g.setColour(Colour(laf_.border()));
-    g.fillRect(kPadX, kSep1Y, w - kPadX * 2, 1);
-    g.fillRect(kPadX, kSep2Y, w - kPadX * 2, 1);
-    g.fillRect(kPadX, kSep3Y, w - kPadX * 2, 1);
 
     g.setFont(Font(12.0f));
     g.setColour(Colour(laf_.accent_colour()));

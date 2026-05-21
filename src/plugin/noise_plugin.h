@@ -97,8 +97,8 @@ private:
                               float in, float mod, float mix,
                               float threshold_lin,
                               float gate_alpha_a, float gate_alpha_r,
-                              NoiseMode mode, float output_lin);
-    void  process_ola_frame (OlaChannel& ch, NoiseChannel& noise_ch, float mod);
+                              NoiseMode mode, float output_lin, NoiseBlend blend);
+    void  process_ola_frame (OlaChannel& ch, NoiseChannel& noise_ch, float mod, NoiseBlend blend);
 
     std::atomic<float> output_sample_ {0.0f};
     std::atomic<float> dry_sample_    {0.0f};

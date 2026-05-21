@@ -37,13 +37,14 @@ private:
 
     // ── Knobs ────────────────────────────────────────────────────────────────
     juce::Slider rate_knob_, depth_knob_, shape_knob_, offset_knob_;
-    juce::Slider cc_num_knob_, cc_ch_knob_;
-    juce::Label  rate_lbl_, depth_lbl_, shape_lbl_, offset_lbl_;
-    juce::Label  cc_num_lbl_, cc_ch_lbl_;
+    juce::Label  rate_lbl_,  depth_lbl_,  shape_lbl_,  offset_lbl_;
 
     using Attachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     std::unique_ptr<Attachment> rate_att_, depth_att_, shape_att_, offset_att_;
-    std::unique_ptr<Attachment> cc_num_att_, cc_ch_att_;
+
+    // ── CC text fields ────────────────────────────────────────────────────────
+    juce::Label cc_num_field_, cc_ch_field_;
+    juce::Label cc_num_lbl_,   cc_ch_lbl_;
 
     // ── Drawing ───────────────────────────────────────────────────────────────
     void draw_strip_chart(juce::Graphics& g, juce::Rectangle<int> area);
@@ -55,24 +56,16 @@ private:
 
     // ── Layout ────────────────────────────────────────────────────────────────
     static constexpr int kWidth      = 700;
-    static constexpr int kHeight     = 330;
+    static constexpr int kHeight     = 248;
     static constexpr int kComboY     = 8;
     static constexpr int kComboH     = 22;
-    static constexpr int kComboW     = 110;
-    static constexpr int kSep1Y      = kComboY + kComboH + 6;
-    static constexpr int kDispY      = kSep1Y + 4;
+    static constexpr int kDispY      = kComboY + kComboH + 8;   // 38
     static constexpr int kDispH      = 100;
-    static constexpr int kSep2Y      = kDispY + kDispH + 4;
-    static constexpr int kLabelY     = kSep2Y + 6;
-    static constexpr int kLabelH     = 13;
-    static constexpr int kKnobY      = kLabelY + kLabelH + 4;
+    static constexpr int kKnobY      = kDispY + kDispH + 14;    // 152
     static constexpr int kKnobSize   = 54;
     static constexpr int kKnobLabelH = 13;
-    static constexpr int kNumCols    = 6;   // RATE DEPTH SHAPE OFFSET CC_NUM CC_CH
+    static constexpr int kNumCols    = 6;
     static constexpr int kPadX       = 14;
-    static constexpr int kSep3Y      = kKnobY + kKnobSize + kKnobLabelH + 4;
-    static constexpr int kCtrlY      = kSep3Y + 6;
-    static constexpr int kCtrlH      = 24;
     static constexpr int kFooterH    = 16;
 
     // Scrolling strip-chart buffer: one sample per timer tick (30 Hz).

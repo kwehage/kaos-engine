@@ -242,7 +242,7 @@ juce::Rectangle<int> NullEngineLookAndFeel::getTooltipBounds(
 {
     // Multi-line tooltips (algorithm descriptions) use a wide box.
     // Single-paragraph tooltips (knobs) use a narrow box closer to the JUCE default.
-    const float kMaxW = tipText.containsChar('\n') ? 620.0f : 360.0f;
+    const float kMaxW = tipText.containsChar('\n') ? 800.0f : 360.0f;
     const auto tl = layout_tip(tipText, plugin_font_.withHeight(12.0f),
                                 Colour(p_.text_primary), kMaxW);
     const int w = jmin((int)(tl.getWidth() + 14.0f), (int)kMaxW + 14);

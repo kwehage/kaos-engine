@@ -193,7 +193,7 @@ void EqEditor::setup_knob(Slider& k, Label& l, const String& name)
     addAndMakeVisible(k);
 
     l.setText(name, dontSendNotification);
-    l.setFont(Font(9.5f));
+    l.setFont(Font(8.5f));
     l.setJustificationType(Justification::centred);
     l.setColour(Label::textColourId, Colour(laf_.text_primary()));
     addAndMakeVisible(l);
@@ -389,9 +389,6 @@ void EqEditor::paint(Graphics& g)
     const Rectangle<int> display(0, 0, getWidth(), kDisplayH);
     draw_display(g, display);
     draw_band_labels(g);
-
-    g.setColour(Colour(laf_.border()));
-    g.fillRect(kPadX, kSepY, getWidth() - kPadX * 2, 1);
 
     g.setFont(Font(12.0f));
     g.setColour(Colour(laf_.accent_colour()));

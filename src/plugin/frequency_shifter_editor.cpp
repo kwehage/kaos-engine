@@ -105,12 +105,7 @@ FrequencyShifterEditor::FrequencyShifterEditor(FrequencyShifterPlugin& plugin)
     direction_attach_ = std::make_unique<AudioProcessorValueTreeState::ComboBoxAttachment>(
         apvts, "direction", direction_box_);
 
-    // Formula label
-    formula_label_.setFont(Font(11.0f));
-    formula_label_.setJustificationType(Justification::centredLeft);
-    formula_label_.setColour(Label::textColourId,       Colour(laf_.text_muted()));
-    formula_label_.setColour(Label::backgroundColourId, Colour(0x00000000));
-    addAndMakeVisible(formula_label_);
+    // formula_label_ not shown -- description routed to direction_box_ tooltip in update_direction_ui().
 
     // Feedback loop combo
     feedback_mode_box_.addItem("Single",    1);
@@ -230,12 +225,12 @@ FrequencyShifterEditor::~FrequencyShifterEditor()
 void FrequencyShifterEditor::setup_knob(Slider& knob, Label& label, const String& name)
 {
     knob.setSliderStyle(Slider::RotaryVerticalDrag);
-    knob.setTextBoxStyle(Slider::TextBoxBelow, false, 60, 14);
+    knob.setTextBoxStyle(Slider::TextBoxBelow, false, 54, 13);
     knob.setPopupDisplayEnabled(true, false, this);
     addAndMakeVisible(knob);
 
     label.setText(name, dontSendNotification);
-    label.setFont(Font(10.0f));
+    label.setFont(Font(8.5f));
     label.setJustificationType(Justification::centred);
     label.setColour(Label::textColourId, Colour(laf_.text_primary()));
     addAndMakeVisible(label);
@@ -249,8 +244,6 @@ void FrequencyShifterEditor::resized()
     // Top row: direction + feedback loop + formula label
     direction_box_.setBounds    (kPadX,                        kModeY, kModeW, kModeH);
     feedback_mode_box_.setBounds(kPadX + kModeW + 8,           kModeY, kLoopW, kModeH);
-    const int formula_x = kPadX + kModeW + 8 + kLoopW + 8;
-    formula_label_.setBounds(formula_x, kModeY, w - formula_x - kPadX, kModeH);
 
     const int slot_w = (w - kPadX * 2) / 5;
 
@@ -284,10 +277,6 @@ void FrequencyShifterEditor::paint(Graphics& g)
 {
     g.fillAll(Colour(laf_.background()));
 
-    // Separators
-    g.setColour(Colour(laf_.border()));
-    g.fillRect(kPadX, kKnobY1 - 8, getWidth() - kPadX * 2, 1);
-    g.fillRect(kPadX, kSepY,       getWidth() - kPadX * 2, 1);
 
     // Footer
     g.setFont(Font(12.0f));
@@ -301,8 +290,7 @@ void FrequencyShifterEditor::update_direction_ui()
 {
     const int idx = direction_box_.getSelectedItemIndex();
     if (idx < 0 || idx >= 3) return;
-    formula_label_.setText(kDirs[idx].desc, dontSendNotification);
-    formula_label_.setTooltip(kDirs[idx].tip);
+    direction_box_.setTooltip(kDirs[idx].tip);
 }
 
 } // namespace kaos_engine

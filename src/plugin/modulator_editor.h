@@ -42,13 +42,13 @@ private:
 
     // ── Layout constants ──────────────────────────────────────────────────────
     static constexpr int kWidth    = 630;
-    static constexpr int kHeight   = 185;
+    static constexpr int kHeight   = 151;
     static constexpr int kModeY    = 12;
     static constexpr int kModeH    = 24;
     static constexpr int kModeW    = 120;
     static constexpr int kWaveW    = 100;
     static constexpr int kKnobY    = 52;
-    static constexpr int kKnobSize = 76;
+    static constexpr int kKnobSize = 54;
     static constexpr int kLabelH   = 16;
     static constexpr int kPadX     = 20;
     static constexpr int kFooterH  = 16;

@@ -36,12 +36,12 @@ private:
     void update_mode_ui();
 
     static constexpr int kWidth    = 700;
-    static constexpr int kHeight   = 185;
+    static constexpr int kHeight   = 151;
     static constexpr int kModeY    = 12;
     static constexpr int kModeH    = 24;
     static constexpr int kModeW    = 160;
     static constexpr int kKnobY    = 52;
-    static constexpr int kKnobSize = 76;
+    static constexpr int kKnobSize = 54;
     static constexpr int kLabelH   = 16;
     static constexpr int kPadX     = 20;
     static constexpr int kFooterH  = 16;

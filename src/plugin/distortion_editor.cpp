@@ -273,13 +273,7 @@ DistortionEditor::DistortionEditor(DistortionPlugin& plugin)
     mode_attach_ = std::make_unique<AudioProcessorValueTreeState::ComboBoxAttachment>(
         apvts, "mode", mode_box_);
 
-    // Formula label
-    formula_label_.setFont(Font(11.0f));
-    formula_label_.setJustificationType(Justification::centredLeft);
-    formula_label_.setColour(Label::textColourId,
-                             Colour(laf_.text_muted()));
-    formula_label_.setColour(Label::backgroundColourId, Colour(0x00000000));
-    addAndMakeVisible(formula_label_);
+    // formula_label_ not shown -- description routed to mode_box_ tooltip in update_mode_ui().
 
     mode_box_.onChange = [this] { update_mode_ui(); };
 
@@ -398,12 +392,12 @@ DistortionEditor::~DistortionEditor()
 void DistortionEditor::setup_knob(Slider& knob, Label& label, const String& name)
 {
     knob.setSliderStyle(Slider::RotaryVerticalDrag);
-    knob.setTextBoxStyle(Slider::TextBoxBelow, false, 60, 14);
+    knob.setTextBoxStyle(Slider::TextBoxBelow, false, 54, 13);
     knob.setPopupDisplayEnabled(true, false, this);
     addAndMakeVisible(knob);
 
     label.setText(name, dontSendNotification);
-    label.setFont(Font(10.0f));
+    label.setFont(Font(8.5f));
     label.setJustificationType(Justification::centred);
     label.setColour(Label::textColourId, Colour(laf_.text_primary()));
     addAndMakeVisible(label);
@@ -416,8 +410,6 @@ void DistortionEditor::resized()
 
     // Waveshaper section
     mode_box_.setBounds(kPadX, kModeY, kModeW, kModeH);
-    const int formula_x = kPadX + kModeW + 12;
-    formula_label_.setBounds(formula_x, kModeY, w - formula_x - kPadX, kModeH);
 
     const int slot_w = (w - kPadX * 2) / 6;
     auto place_knob = [&](Slider& knob, Label& label, int idx) {
@@ -454,11 +446,8 @@ void DistortionEditor::paint(Graphics& g)
 {
     g.fillAll(Colour(laf_.background()));
 
-    // Separator above waveshaper knobs
-    g.setColour(Colour(laf_.border()));
-    g.fillRect(kPadX, kKnobY - 8, getWidth() - kPadX * 2, 1);
-
     // Separator above filter section
+    g.setColour(Colour(laf_.border()));
     g.fillRect(kPadX, kFilterSepY, getWidth() - kPadX * 2, 1);
 
     // Filter frequency response display
@@ -571,8 +560,7 @@ void DistortionEditor::update_mode_ui()
     const int idx = mode_box_.getSelectedItemIndex();
     if (idx < 0 || idx >= 13) return;
 
-    formula_label_.setText(kModes[idx].desc, dontSendNotification);
-    formula_label_.setTooltip(kModes[idx].tip);
+    mode_box_.setTooltip(kModes[idx].tip);
 
     const auto mode      = static_cast<DistortionMode>(idx);
     const bool bias_on   = mode_uses_bias(mode);

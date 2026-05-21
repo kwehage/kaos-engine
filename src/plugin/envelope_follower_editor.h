@@ -28,14 +28,15 @@ private:
         detector_attach_, shape_attach_, out_attach_;
 
     // ── Knobs ────────────────────────────────────────────────────────────────
-    juce::Slider attack_knob_, release_knob_, gain_knob_;
-    juce::Slider depth_knob_,  cc_num_knob_,  cc_ch_knob_;
-    juce::Label  attack_lbl_,  release_lbl_,  gain_lbl_;
-    juce::Label  depth_lbl_,   cc_num_lbl_,   cc_ch_lbl_;
+    juce::Slider attack_knob_, release_knob_, gain_knob_, depth_knob_;
+    juce::Label  attack_lbl_,  release_lbl_,  gain_lbl_,  depth_lbl_;
 
     using Attachment = juce::AudioProcessorValueTreeState::SliderAttachment;
-    std::unique_ptr<Attachment> attack_att_, release_att_, gain_att_;
-    std::unique_ptr<Attachment> depth_att_,  cc_num_att_,  cc_ch_att_;
+    std::unique_ptr<Attachment> attack_att_, release_att_, gain_att_, depth_att_;
+
+    // ── CC text fields ────────────────────────────────────────────────────────
+    juce::Label cc_num_field_, cc_ch_field_;
+    juce::Label cc_num_lbl_,   cc_ch_lbl_;
 
     // ── Strip chart ───────────────────────────────────────────────────────────
     void draw_strip_chart(juce::Graphics& g, juce::Rectangle<int> area);
@@ -54,25 +55,17 @@ private:
 
     // ── Layout ────────────────────────────────────────────────────────────────
     static constexpr int kWidth      = 600;
-    static constexpr int kHeight     = 325;
+    static constexpr int kHeight     = 232;
     static constexpr int kComboY     = 6;
     static constexpr int kComboH     = 20;
     static constexpr int kComboW     = 90;
-    // Two label rows below the combos
-    static constexpr int kSep1Y      = kComboY + kComboH * 3 + 10;
-    static constexpr int kDispY      = kSep1Y + 4;
+    static constexpr int kDispY      = kComboY + kComboH + 8;   // single combo row + gap
     static constexpr int kDispH      = 88;
-    static constexpr int kSep2Y      = kDispY + kDispH + 4;
-    static constexpr int kLabelY     = kSep2Y + 6;
-    static constexpr int kLabelH     = 13;
-    static constexpr int kKnobY      = kLabelY + kLabelH + 4;
+    static constexpr int kKnobY      = kDispY + kDispH + 14;
     static constexpr int kKnobSize   = 54;
     static constexpr int kKnobLabelH = 13;
-    static constexpr int kNumCols    = 6;   // ATTACK RELEASE GAIN DEPTH CC_NUM CC_CH
+    static constexpr int kNumCols    = 6;
     static constexpr int kPadX       = 14;
-    static constexpr int kSep3Y      = kKnobY + kKnobSize + kKnobLabelH + 4;
-    static constexpr int kCtrlY      = kSep3Y + 6;
-    static constexpr int kCtrlH      = 24;
     static constexpr int kFooterH    = 16;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(EnvelopeFollowerEditor)

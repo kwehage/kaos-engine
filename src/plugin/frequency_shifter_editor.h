@@ -50,15 +50,15 @@ private:
 
     // ── Layout constants ──────────────────────────────────────────────────────
     static constexpr int kWidth    = 700;
-    static constexpr int kHeight   = 275;
+    static constexpr int kHeight   = 237;
     static constexpr int kModeY    = 12;
     static constexpr int kModeH    = 24;
     static constexpr int kModeW    = 100;  // direction combo
     static constexpr int kLoopW    = 110;  // feedback loop combo
     static constexpr int kKnobY1   = 52;   // row 1: shift + feedback
-    static constexpr int kSepY     = 152;  // separator between rows
-    static constexpr int kKnobY2   = 160;  // row 2: feedback colour + output
-    static constexpr int kKnobSize = 76;
+    static constexpr int kSepY     = 130;  // separator between rows
+    static constexpr int kKnobY2   = 138;  // row 2: feedback colour + output
+    static constexpr int kKnobSize = 54;
     static constexpr int kLabelH   = 16;
     static constexpr int kPadX     = 20;
     static constexpr int kFooterH  = 16;

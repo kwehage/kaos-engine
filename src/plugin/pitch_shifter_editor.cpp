@@ -31,11 +31,7 @@ PitchShifterEditor::PitchShifterEditor(PitchShifterPlugin& plugin)
         apvts, "algorithm", algo_box_);
     algo_box_.onChange = [this] { update_algo_ui(); };
 
-    algo_label_.setFont(Font(10.5f));
-    algo_label_.setJustificationType(Justification::centredLeft);
-    algo_label_.setColour(Label::textColourId,       Colour(laf_.text_muted()));
-    algo_label_.setColour(Label::backgroundColourId, Colour(0x00000000));
-    addAndMakeVisible(algo_label_);
+    // algo_label_ not shown -- description routed to algo_box_ tooltip in update_algo_ui().
 
     // ── Per-voice knobs ────────────────────────────────────────────────────────
     const char* gainIds[]  = { "gain1",  "gain2",  "gain3"  };
@@ -137,12 +133,12 @@ PitchShifterEditor::~PitchShifterEditor() { setLookAndFeel(nullptr); }
 void PitchShifterEditor::setup_knob(Slider& knob, Label& label, const String& name)
 {
     knob.setSliderStyle(Slider::RotaryVerticalDrag);
-    knob.setTextBoxStyle(Slider::TextBoxBelow, false, 60, 14);
+    knob.setTextBoxStyle(Slider::TextBoxBelow, false, 54, 13);
     knob.setPopupDisplayEnabled(true, false, this);
     addAndMakeVisible(knob);
 
     label.setText(name, dontSendNotification);
-    label.setFont(Font(10.0f));
+    label.setFont(Font(8.5f));
     label.setJustificationType(Justification::centred);
     label.setColour(Label::textColourId, Colour(laf_.text_primary()));
     addAndMakeVisible(label);
@@ -177,8 +173,6 @@ void PitchShifterEditor::resized()
 
     // Algo selector
     algo_box_.setBounds(kPadX, kAlgoY, kAlgoW, kAlgoH);
-    algo_label_.setBounds(kPadX + kAlgoW + 10, kAlgoY,
-                          w - kPadX - kAlgoW - 20, kAlgoH);
 
     // Row 1: GAIN (centred over each voice's 2 slots) + OUTPUT + MIX
     auto place1 = [&](Slider& k, Label& l, float slot) {
@@ -230,9 +224,6 @@ void PitchShifterEditor::paint(Graphics& g)
     const int w      = getWidth();
     const int slot_w = (w - kPadX * 2) / kNumSlots;
 
-    // Horizontal rule above knob section
-    g.setColour(Colour(laf_.border()));
-    g.fillRect(kPadX, kSepY, w - kPadX * 2, 1);
 
     // Voice group headers
     g.setFont(Font(9.5f));
@@ -383,8 +374,7 @@ void PitchShifterEditor::update_algo_ui()
     const int idx = algo_box_.getSelectedItemIndex();
     if (idx < 0 || idx >= 4) return;
 
-    algo_label_.setText(kInfo[idx].desc, dontSendNotification);
-    algo_label_.setTooltip(kInfo[idx].tip);
+    algo_box_.setTooltip(kInfo[idx].tip);
 
     // Update MOD knob tooltips to reflect the current algorithm's meaning
     for (int vi = 0; vi < 3; ++vi) {

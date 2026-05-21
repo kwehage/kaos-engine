@@ -85,11 +85,7 @@ LfoEditor::LfoEditor(LfoPlugin& plugin)
         apvts, "waveform", wave_box_);
     wave_box_.onChange = [this] { update_wave_label(); };
 
-    wave_label_.setFont(Font(10.5f));
-    wave_label_.setJustificationType(Justification::centredLeft);
-    wave_label_.setColour(Label::textColourId, Colour(laf_.text_muted()));
-    wave_label_.setInterceptsMouseClicks(false, false);
-    addAndMakeVisible(wave_label_);
+    // wave_label_ not shown -- description routed to wave_box_ tooltip in update_wave_label().
 
     // Sync combo
     sync_box_.addItem("Free",  1);
@@ -100,11 +96,7 @@ LfoEditor::LfoEditor(LfoPlugin& plugin)
         apvts, "sync", sync_box_);
     sync_box_.onChange = [this] { update_mode_ui(); };
 
-    sync_label_.setText("SYNC", dontSendNotification);
-    sync_label_.setFont(Font(8.5f, Font::bold));
-    sync_label_.setJustificationType(Justification::centredRight);
-    sync_label_.setColour(Label::textColourId, Colour(laf_.text_muted()));
-    addAndMakeVisible(sync_label_);
+    // sync_label_ not shown -- sync combo items "Free"/"Sync" are self-explanatory.
 
     // Division combo
     for (const char* s : {"Whole", "Half", "Dotted 1/4", "1/4",
@@ -147,10 +139,7 @@ LfoEditor::LfoEditor(LfoPlugin& plugin)
     setup_knob(shape_knob_,  shape_lbl_,  "SHAPE");
     setup_knob(phase_knob_,  phase_lbl_,  "PHASE");
     setup_knob(offset_knob_, offset_lbl_, "OFFSET");
-    setup_knob(cc_num_knob_, cc_num_lbl_, "CC NUM");
-    setup_knob(cc_ch_knob_,  cc_ch_lbl_,  "CC CH");
-
-    rate_knob_  .setTooltip("Rate: LFO frequency in Hz (Sync off). Range 0.01–100 Hz.");
+    rate_knob_  .setTooltip("Rate: LFO frequency in Hz (Sync off). Range 0.01-100 Hz.");
     depth_knob_ .setTooltip("Depth: amplitude scale. 0 = off, 1 = full range. "
                             "out = waveform * depth + offset");
     shape_knob_ .setTooltip("Shape: waveform-specific modifier.\n"
@@ -161,19 +150,46 @@ LfoEditor::LfoEditor(LfoPlugin& plugin)
     phase_knob_ .setTooltip("Phase: starting phase offset. "
                             "0 = cycle start; 0.5 = 180\xc2\xb0 into cycle.");
     offset_knob_.setTooltip("Offset: DC shift. 0 = bipolar (-1..+1). "
-                            "+0.5 with depth=0.5 → unipolar 0..+1. "
+                            "+0.5 with depth=0.5 gives unipolar 0..+1. "
                             "Output clamped to [-1, 1].");
-    cc_num_knob_.setTooltip("CC Number: MIDI CC number (0–127). "
-                            "Common: 74=filter, 71=resonance, 7=volume.");
-    cc_ch_knob_ .setTooltip("CC Channel: MIDI channel for CC output (1–16).");
 
-    rate_att_   = std::make_unique<Attachment>(apvts, "rate",       rate_knob_);
-    depth_att_  = std::make_unique<Attachment>(apvts, "depth",      depth_knob_);
-    shape_att_  = std::make_unique<Attachment>(apvts, "shape",      shape_knob_);
-    phase_att_  = std::make_unique<Attachment>(apvts, "phase_off",  phase_knob_);
-    offset_att_ = std::make_unique<Attachment>(apvts, "offset",     offset_knob_);
-    cc_num_att_ = std::make_unique<Attachment>(apvts, "cc_number",  cc_num_knob_);
-    cc_ch_att_  = std::make_unique<Attachment>(apvts, "cc_channel", cc_ch_knob_);
+    rate_att_   = std::make_unique<Attachment>(apvts, "rate",      rate_knob_);
+    depth_att_  = std::make_unique<Attachment>(apvts, "depth",     depth_knob_);
+    shape_att_  = std::make_unique<Attachment>(apvts, "shape",     shape_knob_);
+    phase_att_  = std::make_unique<Attachment>(apvts, "phase_off", phase_knob_);
+    offset_att_ = std::make_unique<Attachment>(apvts, "offset",    offset_knob_);
+
+    // CC text fields
+    auto setup_cc = [&](Label& field, Label& lbl, const char* name,
+                        const char* param_id, int lo, int hi) {
+        field.setEditable(true, true, false);
+        field.setJustificationType(Justification::centred);
+        field.setFont(Font(14.0f));
+        field.setColour(Label::textColourId,       Colour(laf_.text_primary()));
+        field.setColour(Label::backgroundColourId, Colour(laf_.surface()));
+        field.setColour(Label::outlineColourId,    Colour(laf_.border()));
+        addAndMakeVisible(field);
+        lbl.setText(name, dontSendNotification);
+        lbl.setFont(Font(8.5f));
+        lbl.setJustificationType(Justification::centred);
+        lbl.setColour(Label::textColourId, Colour(laf_.text_primary()));
+        addAndMakeVisible(lbl);
+        auto* p = apvts.getParameter(param_id);
+        if (p) field.setText(String(juce::roundToInt(p->convertFrom0to1(p->getValue()))),
+                              dontSendNotification);
+        field.onTextChange = [&field, &apvts, param_id, lo, hi] {
+            const int v = juce::jlimit(lo, hi,
+                              juce::roundToInt(field.getText().getFloatValue()));
+            field.setText(String(v), dontSendNotification);
+            if (auto* p2 = apvts.getParameter(param_id))
+                p2->setValueNotifyingHost(p2->convertTo0to1(float(v)));
+        };
+    };
+    setup_cc(cc_num_field_, cc_num_lbl_, "CC NUM", "cc_number",  0, 127);
+    setup_cc(cc_ch_field_,  cc_ch_lbl_,  "CC CH",  "cc_channel", 1, 16);
+    cc_num_field_.setTooltip("CC Number: MIDI CC number (0-127). "
+                             "Common: 74=filter, 71=resonance, 7=volume.");
+    cc_ch_field_ .setTooltip("CC Channel: MIDI channel for CC output (1-16).");
 
     update_wave_label();
     update_mode_ui();
@@ -206,14 +222,23 @@ void LfoEditor::timerCallback()
     phase_display_ = plugin_.get_phase();
     repaint(0, kDispY, kWidth, kDispH);
     update_mode_ui();
+    // Refresh CC text fields from parameter state (skip if user is editing)
+    auto& apvts = plugin_.get_apvts();
+    auto refresh_cc = [&](Label& field, const char* param_id) {
+        if (!field.isBeingEdited())
+            if (auto* p = apvts.getParameter(param_id))
+                field.setText(String(juce::roundToInt(p->convertFrom0to1(p->getValue()))),
+                              dontSendNotification);
+    };
+    refresh_cc(cc_num_field_, "cc_number");
+    refresh_cc(cc_ch_field_,  "cc_channel");
 }
 
 void LfoEditor::update_wave_label()
 {
     const int idx = wave_box_.getSelectedItemIndex();
     if (idx < 0 || idx >= 11) return;
-    wave_label_.setText(kWaveInfo[idx].label, dontSendNotification);
-    wave_label_.setTooltip(kWaveInfo[idx].tip);
+    wave_box_.setTooltip(kWaveInfo[idx].tip);
 }
 
 void LfoEditor::update_mode_ui()
@@ -227,10 +252,10 @@ void LfoEditor::update_mode_ui()
     div_box_.setEnabled(synced);
     div_box_.setAlpha(synced ? 1.0f : 0.4f);
 
-    cc_num_knob_.setEnabled(show_cc);
-    cc_num_knob_.setAlpha(show_cc ? 1.0f : 0.4f);
-    cc_ch_knob_.setEnabled(show_cc);
-    cc_ch_knob_.setAlpha(show_cc ? 1.0f : 0.4f);
+    cc_num_field_.setEnabled(show_cc); cc_num_field_.setAlpha(show_cc ? 1.0f : 0.4f);
+    cc_num_lbl_  .setAlpha(show_cc ? 1.0f : 0.4f);
+    cc_ch_field_ .setEnabled(show_cc); cc_ch_field_ .setAlpha(show_cc ? 1.0f : 0.4f);
+    cc_ch_lbl_   .setAlpha(show_cc ? 1.0f : 0.4f);
 }
 
 // ── Layout ─────────────────────────────────────────────────────────────────────
@@ -240,9 +265,12 @@ void LfoEditor::resized()
     const int w    = getWidth();
     const int colw = (w - kPadX * 2) / kNumCols;
 
-    wave_box_  .setBounds(kPadX, kComboY, kComboW, kComboH);
-    wave_label_.setBounds(kPadX + kComboW + 8, kComboY,
-                          w - kPadX - kComboW - 14, kComboH);
+    // All combos in one top row; OUTPUT and TRIGGER right-justified
+    wave_box_   .setBounds(kPadX,       kComboY, kComboW, kComboH);
+    sync_box_   .setBounds(kPadX + kComboW + 8,  kComboY,  70, kComboH);
+    div_box_    .setBounds(kPadX + kComboW + 86,  kComboY, 110, kComboH);
+    trigger_box_.setBounds(w - kPadX - 150,       kComboY, 150, kComboH);
+    mode_box_   .setBounds(w - kPadX - 308,       kComboY, 150, kComboH);
 
     auto kx = [&](int col) { return kPadX + col * colw + colw / 2 - kKnobSize / 2; };
     auto lx = [&](int col) { return kPadX + col * colw + colw / 2 - 36; };
@@ -255,18 +283,19 @@ void LfoEditor::resized()
     place(shape_knob_,  shape_lbl_,  2);
     place(phase_knob_,  phase_lbl_,  3);
     place(offset_knob_, offset_lbl_, 4);
-    place(cc_num_knob_, cc_num_lbl_, 5);
-    place(cc_ch_knob_,  cc_ch_lbl_,  6);
 
-    // Controls row
-    const int ctrl_y = kCtrlY;
-    sync_label_.setBounds(kPadX,       ctrl_y, 42,  kCtrlH);
-    sync_box_  .setBounds(kPadX + 44,  ctrl_y, 70,  kCtrlH);
-    div_box_   .setBounds(kPadX + 118, ctrl_y, 110, kCtrlH);
+    // CC text fields -- centered in the same column space as a knob
+    auto place_cc = [&](Label& field, Label& lbl, int col) {
+        const int fx = kPadX + col * colw + colw / 2 - 27;
+        const int fy = kKnobY + (kKnobSize - 28) / 2;
+        field.setBounds(fx, fy, 54, 28);
+        lbl.setBounds(kPadX + col * colw + colw / 2 - 36,
+                      kKnobY + kKnobSize + 1, 72, kKnobLabelH);
+    };
+    place_cc(cc_num_field_, cc_num_lbl_, 5);
+    place_cc(cc_ch_field_,  cc_ch_lbl_,  6);
 
-    const int right_x = w / 2;
-    mode_box_   .setBounds(right_x,       ctrl_y, 150, kCtrlH);
-    trigger_box_.setBounds(right_x + 158, ctrl_y, 150, kCtrlH);
+    // (ctrl row removed -- all combos are now in the top row)
 }
 
 // ── Painting ───────────────────────────────────────────────────────────────────
@@ -276,23 +305,6 @@ void LfoEditor::paint(Graphics& g)
     g.fillAll(Colour(laf_.background()));
 
     draw_waveform_display(g, Rectangle<int>(0, kDispY, kWidth, kDispH));
-
-    // Column header labels above knobs
-    const int w    = getWidth();
-    const int colw = (w - kPadX * 2) / kNumCols;
-    const char* col_labels[] = { "RATE", "DEPTH", "SHAPE", "PHASE", "OFFSET", "CC NUM", "CC CH" };
-    g.setFont(Font(8.5f, Font::bold));
-    g.setColour(Colour(laf_.text_muted()));
-    for (int c = 0; c < kNumCols; ++c) {
-        const int cx = kPadX + c * colw + colw / 2;
-        g.drawText(col_labels[c], cx - 36, kLabelY, 72, kLabelH, Justification::centred);
-    }
-
-    // Separator lines
-    g.setColour(Colour(laf_.border()));
-    g.fillRect(kPadX, kSep1Y, w - kPadX * 2, 1);
-    g.fillRect(kPadX, kSep2Y, w - kPadX * 2, 1);
-    g.fillRect(kPadX, kSep3Y, w - kPadX * 2, 1);
 
     // Footer
     g.setFont(Font(12.0f));

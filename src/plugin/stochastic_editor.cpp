@@ -51,16 +51,14 @@ StochasticEditor::StochasticEditor(StochasticPlugin& plugin)
         ap, "mode", mode_box_);
     mode_box_.onChange = [this] { update_mode_label(); update_mode_ui(); };
 
-    mode_label_.setFont(Font(10.5f));
-    mode_label_.setJustificationType(Justification::centredLeft);
-    mode_label_.setColour(Label::textColourId, Colour(laf_.text_muted()));
-    mode_label_.setInterceptsMouseClicks(false, false);
-    addAndMakeVisible(mode_label_);
+    // mode_label_ not shown -- description text is routed to mode_box_ tooltip in update_mode_label().
 
     // Sync combo
     sync_box_.addItem("Free", 1);
     sync_box_.addItem("Sync", 2);
     sync_box_.setScrollWheelEnabled(false);
+    sync_box_.setTooltip("Sync: Free = run at rate set by RATE knob. "
+                         "Sync = lock to host BPM using the division combo.");
     addAndMakeVisible(sync_box_);
     sync_attach_ = std::make_unique<AudioProcessorValueTreeState::ComboBoxAttachment>(
         ap, "sync", sync_box_);
@@ -109,23 +107,47 @@ StochasticEditor::StochasticEditor(StochasticPlugin& plugin)
     setup_knob(depth_knob_,  depth_lbl_,  "DEPTH");
     setup_knob(shape_knob_,  shape_lbl_,  "SHAPE");
     setup_knob(offset_knob_, offset_lbl_, "OFFSET");
-    setup_knob(cc_num_knob_, cc_num_lbl_, "CC NUM");
-    setup_knob(cc_ch_knob_,  cc_ch_lbl_,  "CC CH");
-
     rate_knob_  .setTooltip("Rate: clock frequency in Hz. Controls step/event speed for all modes.");
     depth_knob_ .setTooltip("Depth: amplitude scale. 0=off, 1=full range. "
                              "out = signal * depth + offset");
     shape_knob_ .setTooltip("Shape: mode-specific. See mode description for details.");
     offset_knob_.setTooltip("Offset: DC shift. 0=bipolar. +0.5 with depth=0.5 -> unipolar 0..+1.");
-    cc_num_knob_.setTooltip("CC Number: MIDI CC number (0-127).");
-    cc_ch_knob_ .setTooltip("CC Channel: MIDI channel (1-16).");
 
-    rate_att_   = std::make_unique<Attachment>(ap, "rate",       rate_knob_);
-    depth_att_  = std::make_unique<Attachment>(ap, "depth",      depth_knob_);
-    shape_att_  = std::make_unique<Attachment>(ap, "shape",      shape_knob_);
-    offset_att_ = std::make_unique<Attachment>(ap, "offset",     offset_knob_);
-    cc_num_att_ = std::make_unique<Attachment>(ap, "cc_number",  cc_num_knob_);
-    cc_ch_att_  = std::make_unique<Attachment>(ap, "cc_channel", cc_ch_knob_);
+    rate_att_   = std::make_unique<Attachment>(ap, "rate",   rate_knob_);
+    depth_att_  = std::make_unique<Attachment>(ap, "depth",  depth_knob_);
+    shape_att_  = std::make_unique<Attachment>(ap, "shape",  shape_knob_);
+    offset_att_ = std::make_unique<Attachment>(ap, "offset", offset_knob_);
+
+    // CC text fields
+    auto setup_cc = [&](Label& field, Label& lbl, const char* name,
+                        const char* param_id, int lo, int hi) {
+        field.setEditable(true, true, false);
+        field.setJustificationType(Justification::centred);
+        field.setFont(Font(14.0f));
+        field.setColour(Label::textColourId,       Colour(laf_.text_primary()));
+        field.setColour(Label::backgroundColourId, Colour(laf_.surface()));
+        field.setColour(Label::outlineColourId,    Colour(laf_.border()));
+        addAndMakeVisible(field);
+        lbl.setText(name, dontSendNotification);
+        lbl.setFont(Font(8.5f));
+        lbl.setJustificationType(Justification::centred);
+        lbl.setColour(Label::textColourId, Colour(laf_.text_primary()));
+        addAndMakeVisible(lbl);
+        auto* p = ap.getParameter(param_id);
+        if (p) field.setText(String(juce::roundToInt(p->convertFrom0to1(p->getValue()))),
+                              dontSendNotification);
+        field.onTextChange = [&field, &ap, param_id, lo, hi] {
+            const int v = juce::jlimit(lo, hi,
+                              juce::roundToInt(field.getText().getFloatValue()));
+            field.setText(String(v), dontSendNotification);
+            if (auto* p2 = ap.getParameter(param_id))
+                p2->setValueNotifyingHost(p2->convertTo0to1(float(v)));
+        };
+    };
+    setup_cc(cc_num_field_, cc_num_lbl_, "CC NUM", "cc_number",  0, 127);
+    setup_cc(cc_ch_field_,  cc_ch_lbl_,  "CC CH",  "cc_channel", 1, 16);
+    cc_num_field_.setTooltip("CC Number: MIDI CC number (0-127).");
+    cc_ch_field_ .setTooltip("CC Channel: MIDI channel (1-16).");
 
     update_mode_label();
     update_mode_ui();
@@ -155,6 +177,16 @@ void StochasticEditor::setup_knob(Slider& k, Label& l, const String& name)
 
 void StochasticEditor::timerCallback()
 {
+    auto& ap = plugin_.get_apvts();
+    auto refresh_cc = [&](Label& field, const char* param_id) {
+        if (!field.isBeingEdited())
+            if (auto* p = ap.getParameter(param_id))
+                field.setText(String(juce::roundToInt(p->convertFrom0to1(p->getValue()))),
+                              dontSendNotification);
+    };
+    refresh_cc(cc_num_field_, "cc_number");
+    refresh_cc(cc_ch_field_,  "cc_channel");
+
     // Sample the live output once per tick and append to the strip-chart buffer.
     signal_trail_[trail_write_] = plugin_.get_output();
     trail_write_ = (trail_write_ + 1) % kTrailSize;
@@ -166,15 +198,17 @@ void StochasticEditor::update_mode_label()
 {
     const int idx = mode_box_.getSelectedItemIndex();
     if (idx >= 0 && idx < 6)
-        mode_label_.setText(kModeInfo[idx], dontSendNotification);
+        mode_box_.setTooltip(kModeInfo[idx]);
 }
 
 void StochasticEditor::update_mode_ui()
 {
     const int  out_mode = out_box_.getSelectedItemIndex();
     const bool show_cc  = (out_mode == 0 || out_mode == 2);
-    cc_num_knob_.setEnabled(show_cc); cc_num_knob_.setAlpha(show_cc ? 1.0f : 0.4f);
-    cc_ch_knob_ .setEnabled(show_cc); cc_ch_knob_ .setAlpha(show_cc ? 1.0f : 0.4f);
+    cc_num_field_.setEnabled(show_cc); cc_num_field_.setAlpha(show_cc ? 1.0f : 0.4f);
+    cc_num_lbl_  .setAlpha(show_cc ? 1.0f : 0.4f);
+    cc_ch_field_ .setEnabled(show_cc); cc_ch_field_ .setAlpha(show_cc ? 1.0f : 0.4f);
+    cc_ch_lbl_   .setAlpha(show_cc ? 1.0f : 0.4f);
 
     const bool synced = sync_box_.getSelectedItemIndex() == 1;
     rate_knob_.setEnabled(!synced);
@@ -190,9 +224,12 @@ void StochasticEditor::resized()
     const int w    = getWidth();
     const int colw = (w - kPadX * 2) / kNumCols;
 
-    mode_box_  .setBounds(kPadX, kComboY, kComboW, kComboH);
-    mode_label_.setBounds(kPadX + kComboW + 8, kComboY,
-                          w - kPadX - kComboW - 14, kComboH);
+    // All combos across the top row; OUTPUT and TRIGGER right-justified
+    mode_box_ .setBounds(kPadX,       kComboY, 110, kComboH);
+    sync_box_ .setBounds(kPadX + 118, kComboY,  70, kComboH);
+    div_box_  .setBounds(kPadX + 196, kComboY, 120, kComboH);
+    trig_box_ .setBounds(w - kPadX - 150,       kComboY, 150, kComboH);
+    out_box_  .setBounds(w - kPadX - 150 - 8 - 150, kComboY, 150, kComboH);
 
     auto kx = [&](int col) { return kPadX + col * colw + colw / 2 - kKnobSize / 2; };
     auto lx = [&](int col) { return kPadX + col * colw + colw / 2 - 36; };
@@ -204,16 +241,18 @@ void StochasticEditor::resized()
     place(depth_knob_,  depth_lbl_,  1);
     place(shape_knob_,  shape_lbl_,  2);
     place(offset_knob_, offset_lbl_, 3);
-    place(cc_num_knob_, cc_num_lbl_, 4);
-    place(cc_ch_knob_,  cc_ch_lbl_,  5);
 
-    sync_label_.setBounds(kPadX,       kCtrlY,  42, kCtrlH);
-    sync_box_  .setBounds(kPadX + 44,  kCtrlY,  70, kCtrlH);
-    div_box_   .setBounds(kPadX + 118, kCtrlY, 110, kCtrlH);
+    auto place_cc = [&](Label& field, Label& lbl, int col) {
+        const int fx = kPadX + col * colw + colw / 2 - 27;
+        const int fy = kKnobY + (kKnobSize - 28) / 2;
+        field.setBounds(fx, fy, 54, 28);
+        lbl.setBounds(kPadX + col * colw + colw / 2 - 36,
+                      kKnobY + kKnobSize + 1, 72, kKnobLabelH);
+    };
+    place_cc(cc_num_field_, cc_num_lbl_, 4);
+    place_cc(cc_ch_field_,  cc_ch_lbl_,  5);
 
-    const int right_x = w / 2;
-    out_box_ .setBounds(right_x,       kCtrlY, 150, kCtrlH);
-    trig_box_.setBounds(right_x + 158, kCtrlY, 150, kCtrlH);
+    // sync_label_ not shown -- sync is self-evident from combo items "Free"/"Sync"
 }
 
 // ── Painting ───────────────────────────────────────────────────────────────────
@@ -223,22 +262,6 @@ void StochasticEditor::paint(Graphics& g)
     g.fillAll(Colour(laf_.background()));
 
     draw_strip_chart(g, Rectangle<int>(0, kDispY, kWidth, kDispH));
-
-    // Knob column header labels
-    const int w    = getWidth();
-    const int colw = (w - kPadX * 2) / kNumCols;
-    const char* col_labels[] = { "RATE", "DEPTH", "SHAPE", "OFFSET", "CC NUM", "CC CH" };
-    g.setFont(Font(8.5f, Font::bold));
-    g.setColour(Colour(laf_.text_muted()));
-    for (int c = 0; c < kNumCols; ++c) {
-        const int cx = kPadX + c * colw + colw / 2;
-        g.drawText(col_labels[c], cx - 36, kLabelY, 72, kLabelH, Justification::centred);
-    }
-
-    g.setColour(Colour(laf_.border()));
-    g.fillRect(kPadX, kSep1Y, w - kPadX * 2, 1);
-    g.fillRect(kPadX, kSep2Y, w - kPadX * 2, 1);
-    g.fillRect(kPadX, kSep3Y, w - kPadX * 2, 1);
 
     g.setFont(Font(12.0f));
     g.setColour(Colour(laf_.accent_colour()));

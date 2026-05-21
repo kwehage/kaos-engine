@@ -14,6 +14,7 @@ void NoiseProcessor::prepare(double sample_rate, int /*block_size*/)
     ch_prev_.seed(0xcafebabe);
     update_grain_params();
     update_gate_coeffs();
+    modal_dirty_ = true;
     reset();
 }
 
@@ -28,9 +29,11 @@ void NoiseProcessor::update_gate_coeffs()
 void NoiseProcessor::reset()
 {
     for (auto& g : grains_) g = {};
-    spawn_phase_ = 0.0f;
-    gate_env_    = 0.0f;
-    gate_smooth_ = 0.0f;
+    spawn_phase_      = 0.0f;
+    gate_env_         = 0.0f;
+    gate_smooth_      = 0.0f;
+    infrasonic_phase_ = 0.0f;
+    roughness_phase_  = 0.0f;
 }
 
 void NoiseProcessor::update_grain_params()
@@ -40,6 +43,9 @@ void NoiseProcessor::update_grain_params()
     // spawn_inc_: fraction of full-rate at which we attempt new grains
     // density 0..1 maps to 0..30 grains/second average
     spawn_inc_ = (density_ * 30.0f) / fs;
+    // Simplex evolution rate: 0.5 Hz at SIZE=5ms, 50 Hz at SIZE=500ms (log scale)
+    const float log_t = (grain_size_ms_ - 5.0f) / 495.0f;
+    simplex_step_ = 0.5f * std::pow(100.0f, log_t) / fs;
 }
 
 void NoiseProcessor::try_spawn_grain()
@@ -58,9 +64,51 @@ void NoiseProcessor::try_spawn_grain()
 float NoiseProcessor::noise_sample(NoiseChannel& ch) const
 {
     switch (type_) {
-        case NoiseType::Pink:  return const_cast<NoiseChannel&>(ch).pink();
-        case NoiseType::Brown: return const_cast<NoiseChannel&>(ch).brown();
-        default:               return const_cast<NoiseChannel&>(ch).randbi();
+        case NoiseType::Pink:   return const_cast<NoiseChannel&>(ch).pink();
+        case NoiseType::Brown:  return const_cast<NoiseChannel&>(ch).brown();
+        case NoiseType::Lorenz: {
+            const float dt  = grain_size_ms_ * 0.0002f;          // 5ms->0.001, 50ms->0.01, 500ms->0.1
+            const float rho = 24.0f + density_ * 11.0f;          // 24 (ordered) to 35 (chaotic)
+            return const_cast<NoiseChannel&>(ch).lorenz(dt, rho);
+        }
+        case NoiseType::FeedbackComb: {
+            const int delay = std::max(1, std::min(int(grain_size_samples_),
+                                                   NoiseChannel::kCombDelayCap - 1));
+            return const_cast<NoiseChannel&>(ch).comb(density_ * 0.98f, delay);
+        }
+        case NoiseType::Simplex: {
+            const int   octaves     = 1 + int(density_ * 7.0f);
+            const float persistence = 0.5f + mod_ * 0.45f;
+            return const_cast<NoiseChannel&>(ch).simplex(simplex_step_, octaves, persistence);
+        }
+        case NoiseType::Gendyn: {
+            const int   n_breaks = 2 + int(density_ * 14.0f);
+            const float base_dur = grain_size_samples_ / float(n_breaks);
+            const float min_dur  = std::max(1.0f, base_dur * 0.1f);
+            return const_cast<NoiseChannel&>(ch).gendyn(
+                mod_ * 0.3f, mod_ * base_dur * 0.3f, base_dur, min_dur, n_breaks);
+        }
+        case NoiseType::Duffing: {
+            const float dt    = grain_size_ms_ * 0.0002f;   // 5ms->0.001, 50ms->0.01, 500ms->0.1
+            const float gamma = 0.3f + density_ * 0.9f;     // 0.3=near-periodic, 1.2=strongly chaotic
+            const float omega = 0.9f + mod_ * 0.6f;         // 0.9-1.5 forcing frequency
+            return const_cast<NoiseChannel&>(ch).duffing(dt, gamma, omega);
+        }
+        case NoiseType::Blue:
+            return const_cast<NoiseChannel&>(ch).blue();
+        case NoiseType::Chua: {
+            const float dt    = grain_size_ms_ * 0.0002f;   // 5ms->0.001, 500ms->0.1
+            const float alpha = 5.0f + density_ * 7.0f;     // 5-12: shapes double-scroll attractor
+            return const_cast<NoiseChannel&>(ch).chua(dt, alpha);
+        }
+        case NoiseType::HarshWall: {
+            // scale 1-15: SIZE 5ms->1 (bright ~6kHz center), SIZE 500ms->15 (dark ~200Hz center)
+            const int   scale = 1 + int((grain_size_ms_ - 5.0f) / 495.0f * 14.0f);
+            const float f     = 0.50f + density_ * 0.45f;  // 0.50-0.95: subtle coloring to strong wall
+            const float drive = 1.0f  + mod_     * 14.0f;  // 1-15: warm/soft to harsh/hard-clip
+            return const_cast<NoiseChannel&>(ch).harsh_wall(scale, f, drive);
+        }
+        default: return const_cast<NoiseChannel&>(ch).randbi();
     }
 }
 
@@ -70,25 +118,73 @@ float NoiseProcessor::derived_noise_sample(NoiseChannel& ch, float x) const
     auto& c = const_cast<NoiseChannel&>(ch);
     switch (type_) {
         case NoiseType::Residual: {
-            // LP cutoff: fc = 1000 / grain_size_ms_ Hz
             const float fs    = float(sample_rate_);
             const float fc    = 1000.0f / grain_size_ms_;
             const float alpha = std::exp(-2.0f * float(M_PI) * fc / fs);
-            // Normalize: residual amplitude <= |x| (signal-dependent).
-            // tanh(n * 4) brings it to roughly ±1 range for typical signals,
-            // giving similar modulation depth to the independent noise types.
             return std::tanh(c.residual(x, alpha) * 4.0f);
         }
         case NoiseType::Coupled:
-            // Already ±1 range after DC removal; no further normalization needed.
             return c.coupled(x, density_);
         case NoiseType::Diffuse: {
             const float g = 0.1f + density_ * 0.8f;
-            // Allpass preserves amplitude exactly — normalize same as Residual.
             return std::tanh(c.diffuse(x, g) * 4.0f);
+        }
+        case NoiseType::Modal: {
+            // Drive the pre-computed resonator bank with the input sample.
+            // modal_b0_/a1_/a2_ are populated by update_modal_coeffs() before
+            // this call (checked at the top of process()).
+            float out = 0.0f;
+            for (int k = 0; k < modal_n_active_; ++k) {
+                const float y = modal_b0_[k] * x
+                              - modal_a1_[k] * ch.modal_y1_[k]
+                              - modal_a2_[k] * ch.modal_y2_[k];
+                ch.modal_y2_[k] = ch.modal_y1_[k];
+                ch.modal_y1_[k] = y;
+                out += y / float(k + 1);   // decreasing per-mode weight
+            }
+            return std::tanh(out * 4.0f);
+        }
+        case NoiseType::SimplexDriven: {
+            const float env_alpha = 0.999f;
+            const int   octaves   = 1 + int(density_ * 7.0f);
+            return const_cast<NoiseChannel&>(ch).simplex_driven(
+                x, simplex_step_, env_alpha, mod_, octaves);
         }
         default: return 0.0f;
     }
+}
+
+void NoiseProcessor::update_modal_coeffs()
+{
+    const float sr = float(sample_rate_);
+    if (sr <= 0.0f) return;
+
+    // SIZE maps to fundamental frequency of mode 1 (100 Hz at 5ms, 2000 Hz at 500ms).
+    const float f1  = 100.0f * std::pow(20.0f, (grain_size_ms_ - 5.0f) / 495.0f);
+    // DENSITY maps to inharmonicity coefficient B (0 = harmonic bar, 0.05 = strongly inharmonic).
+    const float B   = density_ * 0.05f;
+    // MOD maps to T60 decay time (0.1 s = percussive, 6 s = bell-like ring).
+    const float T60 = 0.1f + mod_ * 5.9f;
+
+    modal_n_active_ = 0;
+    for (int k = 1; k <= kModalModes; ++k) {
+        // Inharmonic bar/plate frequency series: f_k = f1 * k^2 * sqrt(1 + B*k^2)
+        const float fk = f1 * float(k) * float(k)
+                       * std::sqrt(1.0f + B * float(k) * float(k));
+        if (fk >= sr * 0.49f) break;
+
+        // Frequency-dependent decay: higher modes ring shorter (physically realistic).
+        const float T60_k = T60 / std::sqrt(float(k));
+        const float r     = std::exp(-6.908f / (T60_k * sr));
+        const float omega = 2.0f * float(M_PI) * fk / sr;
+        const int   i     = k - 1;
+
+        modal_b0_[i] = 1.0f - r;
+        modal_a1_[i] = -2.0f * r * std::cos(omega);
+        modal_a2_[i] = r * r;
+        ++modal_n_active_;
+    }
+    modal_dirty_ = false;
 }
 
 float NoiseProcessor::granular_sample(NoiseChannel& ch)
@@ -107,6 +203,9 @@ float NoiseProcessor::granular_sample(NoiseChannel& ch)
 
 void NoiseProcessor::process(float* left, float* right, int num_samples)
 {
+    if (modal_dirty_)
+        update_modal_coeffs();
+
     for (int i = 0; i < num_samples; ++i) {
         // Derive gate/envelope modulator from input
         if (mode_ == NoiseMode::AlwaysOn) {
@@ -136,9 +235,11 @@ void NoiseProcessor::process(float* left, float* right, int num_samples)
             }
             nl = granular_sample(ch_l_);
             nr = granular_sample(ch_r_);
-        } else if (type_ == NoiseType::Residual ||
-                   type_ == NoiseType::Coupled  ||
-                   type_ == NoiseType::Diffuse) {
+        } else if (type_ == NoiseType::Residual      ||
+                   type_ == NoiseType::Coupled       ||
+                   type_ == NoiseType::Diffuse        ||
+                   type_ == NoiseType::Modal          ||
+                   type_ == NoiseType::SimplexDriven) {
             nl = derived_noise_sample(ch_l_, left [i]);
             nr = derived_noise_sample(ch_r_, right[i]);
         } else {
@@ -152,18 +253,40 @@ void NoiseProcessor::process(float* left, float* right, int num_samples)
         float out_l, out_r;
         switch (blend_) {
             case NoiseBlend::AM:
-                // Amplitude modulation: noise multiplies the signal.
-                // y = x * (1 + mix*n)
                 out_l = left [i] * (1.0f + mix_ * noise_l);
                 out_r = right[i] * (1.0f + mix_ * noise_r);
                 break;
             case NoiseBlend::Saturate:
-                // Noise injected before a tanh soft clipper.
-                // y = lerp(x, tanh(x + mod*n), mix)
                 out_l = (1.0f - mix_) * left [i] + mix_ * std::tanh(left [i] + mod_ * noise_l);
                 out_r = (1.0f - mix_) * right[i] + mix_ * std::tanh(right[i] + mod_ * noise_r);
                 break;
-            default: { // Add: standard dry/wet crossfade
+            case NoiseBlend::RingMod:
+                // Suppressed-carrier AM: y = (1-mix)*x + mix*(x*n).
+                // At mix=1, only sidebands remain (no dry signal).
+                out_l = (1.0f - mix_) * left [i] + mix_ * left [i] * noise_l;
+                out_r = (1.0f - mix_) * right[i] + mix_ * right[i] * noise_r;
+                break;
+            case NoiseBlend::Roughness: {
+                const float fc        = 20.0f + mod_ * 180.0f;  // 20-200 Hz carrier
+                const float phase_inc = fc / float(sample_rate_);
+                const float carrier   = std::sin(2.0f * float(M_PI) * roughness_phase_);
+                roughness_phase_ += phase_inc;
+                if (roughness_phase_ >= 1.0f) roughness_phase_ -= 1.0f;
+                out_l = (1.0f - mix_) * left [i] + mix_ * left [i] * carrier;
+                out_r = (1.0f - mix_) * right[i] + mix_ * right[i] * carrier;
+                break;
+            }
+            case NoiseBlend::InfrasonicAM: {
+                const float freq      = 0.1f + mod_ * 18.9f;   // 0.1-19 Hz
+                const float phase_inc = freq / float(sample_rate_);
+                const float lfo = std::sin(2.0f * float(M_PI) * infrasonic_phase_);
+                infrasonic_phase_ += phase_inc;
+                if (infrasonic_phase_ >= 1.0f) infrasonic_phase_ -= 1.0f;
+                out_l = left [i] * (1.0f + mix_ * lfo);
+                out_r = right[i] * (1.0f + mix_ * lfo);
+                break;
+            }
+            default: { // Add
                 const float dry = 1.0f - mix_;
                 out_l = dry * left [i] + mix_ * noise_l;
                 out_r = dry * right[i] + mix_ * noise_r;
@@ -186,9 +309,11 @@ float NoiseProcessor::next_preview_sample()
         return granular_sample(ch_prev_) * gain_;
     }
     // Input-derived types have no signal in preview context.
-    if (type_ == NoiseType::Residual ||
-        type_ == NoiseType::Coupled  ||
-        type_ == NoiseType::Diffuse)
+    if (type_ == NoiseType::Residual      ||
+        type_ == NoiseType::Coupled       ||
+        type_ == NoiseType::Diffuse        ||
+        type_ == NoiseType::Modal          ||
+        type_ == NoiseType::SimplexDriven)
         return 0.0f;
     return noise_sample(ch_prev_) * gain_;
 }

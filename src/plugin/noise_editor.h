@@ -25,7 +25,7 @@ private:
     juce::ComboBox type_box_, mode_box_, blend_box_;
     juce::Label    desc_label_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>
-        type_attach_, mode_attach_, blend_attach_;
+        mode_attach_, blend_attach_;
 
     // ── Knobs ─────────────────────────────────────────────────────────────────
     juce::Slider gain_knob_, mod_knob_,  size_knob_,    density_knob_;
@@ -62,22 +62,17 @@ private:
 
     // ── Layout ────────────────────────────────────────────────────────────────
     static constexpr int kWidth      = 700;
-    static constexpr int kHeight     = 290;
-    static constexpr int kComboY     = 6;
+    static constexpr int kHeight     = 236;
+    static constexpr int kComboY     = 8;
     static constexpr int kComboH     = 20;
     static constexpr int kComboW     = 100;
-    static constexpr int kSep1Y      = kComboY + kComboH * 2 + 10;
-    static constexpr int kDispY      = kSep1Y + 4;
+    static constexpr int kDispY      = kComboY + kComboH + 8;   // 36
     static constexpr int kDispH      = 90;
-    static constexpr int kSep2Y      = kDispY + kDispH + 4;
-    static constexpr int kLabelY     = kSep2Y + 6;
-    static constexpr int kLabelH     = 13;
-    static constexpr int kKnobY      = kLabelY + kLabelH + 4;
+    static constexpr int kKnobY      = kDispY + kDispH + 14;    // 140
     static constexpr int kKnobSize   = 54;
     static constexpr int kKnobLabelH = 13;
     static constexpr int kNumCols    = 9;
     static constexpr int kPadX       = 14;
-    static constexpr int kSep3Y      = kKnobY + kKnobSize + kKnobLabelH + 4;
     static constexpr int kFooterH    = 16;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NoiseEditor)

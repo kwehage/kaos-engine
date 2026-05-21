@@ -9,12 +9,14 @@ namespace kaos_engine {
 void LooperEditor::setup_knob(juce::Slider& k, juce::Label& l, const juce::String& name)
 {
     k.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-    k.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, kValLblH);
+    k.setTextBoxStyle(juce::Slider::TextBoxBelow, false, kKnobSize, 13);
     k.setLookAndFeel(&laf_);
     addAndMakeVisible(k);
 
     l.setText(name, juce::dontSendNotification);
+    l.setFont(juce::Font(8.5f));
     l.setJustificationType(juce::Justification::centred);
+    l.setColour(juce::Label::textColourId, juce::Colour(laf_.text_primary()));
     l.setLookAndFeel(&laf_);
     addAndMakeVisible(l);
 }
@@ -156,25 +158,25 @@ void LooperEditor::resized()
         boxes[i] ->setBounds(cx, kComboY,    combo_each, kComboH);
     }
 
-    // CC text fields: left side (cols 0-3)
+    // CC text fields: left side (cols 0-3); label above field, both in knob area
     const int field_h = 22;
-    const int field_y = kKnobLblY + kKnobLblH + 2;
+    const int field_y = kKnobY + kKnobLblH + 2;
     juce::Label* cc_fields[] = { &cc_rec_field_, &cc_stop_field_, &cc_clr_field_, &cc_chan_field_ };
     juce::Label* cc_hdrs[]   = { &cc_rec_lbl_,   &cc_stop_lbl_,   &cc_clr_lbl_,   &cc_chan_lbl_  };
     for (int c = 0; c < 4; ++c) {
         const int lx = kPadX + c * col_w;
-        cc_hdrs[c]  ->setBounds(lx, kKnobLblY, col_w, kKnobLblH);
+        cc_hdrs[c]  ->setBounds(lx, kKnobY, col_w, kKnobLblH);
         cc_fields[c]->setBounds(lx + 4, field_y, col_w - 8, field_h);
     }
 
-    // Knobs: right side (cols 4-7)
+    // Knobs: right side (cols 4-7); label BELOW knob
     juce::Slider* knobs[]   = { &feedback_knob_, &input_knob_, &output_knob_, &mix_knob_ };
     juce::Label*  kn_lbls[] = { &feedback_lbl_,  &input_lbl_,  &output_lbl_,  &mix_lbl_  };
     for (int c = 0; c < 4; ++c) {
         const int col = c + 4;
         const int cx  = kPadX + col * col_w + (col_w - kKnobSize) / 2;
-        kn_lbls[c]->setBounds(kPadX + col * col_w, kKnobLblY, col_w, kKnobLblH);
         knobs[c]  ->setBounds(cx, kKnobY, kKnobSize, kKnobSize);
+        kn_lbls[c]->setBounds(kPadX + col * col_w, kKnobY + kKnobSize + 1, col_w, kKnobLblH);
     }
 }
 
@@ -198,11 +200,6 @@ void LooperEditor::paint(juce::Graphics& g)
     g.fillRect(wave_rect);
     draw_waveform(g, wave_rect);
 
-    // ── Separators ────────────────────────────────────────────────────────────
-    g.setColour(bdr);
-    g.drawHorizontalLine(kSep1Y, 0.0f, float(kWidth));
-    g.drawHorizontalLine(kSep2Y, 0.0f, float(kWidth));
-    g.drawHorizontalLine(kSep3Y, 0.0f, float(kWidth));
 
     // ── State indicator (right of transport buttons) ──────────────────────────
     const LooperState st = plugin_.get_dsp().get_state();

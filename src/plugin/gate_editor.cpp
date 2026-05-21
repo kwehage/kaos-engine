@@ -80,10 +80,7 @@ GateEditor::GateEditor(GatePlugin& plugin)
         apvts, "algorithm", algo_box_);
     algo_box_.onChange = [this] { update_algo_ui(); };
 
-    algo_label_.setFont(Font(10.5f));
-    algo_label_.setJustificationType(Justification::centredLeft);
-    algo_label_.setColour(Label::textColourId, Colour(laf_.text_muted()));
-    addAndMakeVisible(algo_label_);
+    // algo_label_ not shown -- description routed to algo_box_ tooltip in update_algo_ui().
 
     setup_knob(threshold_knob_,  threshold_lbl_,  "THRESHOLD");
     setup_knob(range_knob_,      range_lbl_,      "RANGE");
@@ -147,7 +144,7 @@ void GateEditor::setup_knob(Slider& k, Label& l, const String& name)
     k.setPopupDisplayEnabled(true, false, this);
     addAndMakeVisible(k);
     l.setText(name, dontSendNotification);
-    l.setFont(Font(8.0f));
+    l.setFont(Font(8.5f));
     l.setJustificationType(Justification::centred);
     l.setColour(Label::textColourId, Colour(laf_.text_primary()));
     addAndMakeVisible(l);
@@ -172,8 +169,7 @@ void GateEditor::update_algo_ui()
 {
     const int idx = algo_box_.getSelectedItemIndex();
     if (idx < 0 || idx >= 3) return;
-    algo_label_.setText(kAlgoInfo[idx].label, dontSendNotification);
-    algo_label_.setTooltip(kAlgoInfo[idx].tip);
+    algo_box_.setTooltip(kAlgoInfo[idx].tip);
 
     // Ratio only meaningful for Expander / Ducker
     const bool ratio_active = (idx != 0);
@@ -194,9 +190,7 @@ void GateEditor::resized()
     const int w    = getWidth();
     const int colw = (w - kPadX * 2) / kNumCols;
 
-    algo_box_  .setBounds(kPadX, kComboY, kComboW, kComboH);
-    algo_label_.setBounds(kPadX + kComboW + 8, kComboY,
-                          w - kPadX - kComboW - 14, kComboH);
+    algo_box_.setBounds(kPadX, kComboY, kComboW, kComboH);
 
     auto kx = [&](int col) { return kPadX + col * colw + colw / 2 - kKnobSize / 2; };
     auto lx = [&](int col) { return kPadX + col * colw + colw / 2 - 34; };
@@ -223,23 +217,6 @@ void GateEditor::paint(Graphics& g)
     const int tw = kWidth - kMeterW;   // transfer / activity display width
     draw_transfer(g, { 0,          kDispY, tw,       kDispH });
     draw_gr_meter(g, { tw,         kDispY, kMeterW,  kDispH });
-
-    // Column header labels
-    const int w    = getWidth();
-    const int colw = (w - kPadX * 2) / kNumCols;
-    const char* col_labels[] = {
-        "THRESHOLD","RANGE","RATIO","ATTACK","HOLD","RELEASE","HYSTERESIS","OUTPUT","MIX"
-    };
-    g.setFont(Font(8.0f, Font::bold));
-    g.setColour(Colour(laf_.text_muted()));
-    for (int c = 0; c < kNumCols; ++c) {
-        const int cx = kPadX + c * colw + colw / 2;
-        g.drawText(col_labels[c], cx - 34, kLabelY, 68, kLabelH, Justification::centred);
-    }
-
-    g.setColour(Colour(laf_.border()));
-    g.fillRect(kPadX, kSep1Y,  w - kPadX * 2, 1);
-    g.fillRect(kPadX, kSep2Y,  w - kPadX * 2, 1);
 
     g.setFont(Font(12.0f));
     g.setColour(Colour(laf_.accent_colour()));

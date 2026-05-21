@@ -332,10 +332,7 @@ labelled in Hz or kHz. The All Pass mode annotates the flat line to explain the 
 
 ![kaos-engine::eq](doc/images/eq.png)
 
-A 5-band parametric equalizer with a real-time spectrum analyzer. Each band uses a
-second-order RBJ Cookbook biquad filter (Transposed Direct Form II). The frequency
-response of all bands is computed analytically using the phi trick and drawn as an
-overlay on top of the spectrum display.
+A 5-band parametric equalizer with a real-time spectrum analyzer.
 
 **Bands**
 
@@ -359,7 +356,7 @@ overlay on top of the spectrum display.
 
 **Display:** The upper portion shows a semi-transparent spectrum of the live input signal
 (2048-point FFT with Hann window, 30 Hz refresh). The red EQ curve is computed analytically
-from the current parameter values and redraws on every knob change.
+from the current parameter values.
 
 ---
 
@@ -590,10 +587,9 @@ project palette.
 
 | Element | Description |
 |---|---|
-| **Spectrogram image** | 700 x 438 px scrolling image. Each row is one FFT frame (~46 ms at 44.1 kHz). Time flows downward; the most recent frame is always at the bottom |
+| **Spectrogram image** | 700 x 438 px scrolling image. Each row is one FFT frame (~46 ms at 44.1 kHz). Time flows upward; the most recent frame is always at the bottom |
 | **Frequency axis** | Log scale from 20 Hz to 20 kHz with tick marks and labels at 50, 100, 200, 500, 1k, 2k, 5k, 10k, 20k Hz. Faint vertical gridlines extend into the image |
 | **Color scale** | Legend in the top-right corner of the image. Maps 0 dB (near-white peak) to -90 dB (background black) via cadmium red and dark orange |
-| **Time axis** | Rotated "time ->" label on the left edge |
 
 **Color map**
 

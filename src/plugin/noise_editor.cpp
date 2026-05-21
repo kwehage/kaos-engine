@@ -15,19 +15,38 @@ NoiseEditor::NoiseEditor(NoisePlugin& plugin)
 
     auto& ap = plugin_.get_apvts();
 
-    // Type combo
-    type_box_.addItem("White",    1);
-    type_box_.addItem("Pink",     2);
-    type_box_.addItem("Brown",    3);
-    type_box_.addItem("Granular", 4);
-    type_box_.addItem("Residual", 5);
-    type_box_.addItem("Coupled",  6);
-    type_box_.addItem("Diffuse",  7);
+    // Type combo -- manual APVTS sync (not ComboBoxAttachment) so addSeparator() works
+    // Item IDs are enum_value + 1 so getSelectedId()-1 == enum int directly.
+    type_box_.addItem("White",          1);
+    type_box_.addItem("Pink",           2);
+    type_box_.addItem("Blue",           3);
+    type_box_.addItem("Brown",          4);
+    type_box_.addItem("Granular",       5);
+    type_box_.addItem("Feedback Comb",  6);
+    type_box_.addItem("Simplex",        7);
+    type_box_.addItem("Lorenz",         8);
+    type_box_.addItem("Duffing",        9);
+    type_box_.addItem("Gendyn",        10);
+    type_box_.addItem("Harsh Wall",    11);
+    type_box_.addItem("Chua's Circuit", 12);
+    type_box_.addSeparator();
+    type_box_.addItem("Residual",      13);
+    type_box_.addItem("Coupled",       14);
+    type_box_.addItem("Diffuse",       15);
+    type_box_.addItem("Modal",         16);
+    type_box_.addItem("Simplex 2D",    17);
     type_box_.setScrollWheelEnabled(false);
     addAndMakeVisible(type_box_);
-    type_attach_ = std::make_unique<AudioProcessorValueTreeState::ComboBoxAttachment>(
-        ap, "noise_type", type_box_);
-    type_box_.onChange = [this] { update_type_ui(); };
+    // Initial value from APVTS
+    type_box_.setSelectedId(juce::roundToInt(ap.getRawParameterValue("noise_type")->load()) + 1,
+                            dontSendNotification);
+    type_box_.onChange = [this, &ap] {
+        const int id = type_box_.getSelectedId();
+        if (id > 0)
+            if (auto* p = ap.getParameter("noise_type"))
+                p->setValueNotifyingHost(p->convertTo0to1(float(id - 1)));
+        update_type_ui();
+    };
 
     // Mode combo
     mode_box_.addItem("Follow",    1);
@@ -40,22 +59,21 @@ NoiseEditor::NoiseEditor(NoisePlugin& plugin)
     mode_box_.onChange = [this] { update_mode_ui(); update_type_ui(); };
 
     // Blend combo
-    blend_box_.addItem("Add",      1);
-    blend_box_.addItem("AM",       2);
-    blend_box_.addItem("Saturate", 3);
-    blend_box_.addItem("Spectral", 4);
+    blend_box_.addItem("Add",       1);
+    blend_box_.addItem("AM",        2);
+    blend_box_.addItem("Saturate",  3);
+    blend_box_.addItem("Spectral",  4);
+    blend_box_.addItem("Phase Random", 5);
+    blend_box_.addItem("Ring Mod",  6);
+    blend_box_.addItem("Infrasonic AM", 7);
+    blend_box_.addItem("Roughness",    8);
     blend_box_.setScrollWheelEnabled(false);
     addAndMakeVisible(blend_box_);
     blend_attach_ = std::make_unique<AudioProcessorValueTreeState::ComboBoxAttachment>(
         ap, "noise_blend", blend_box_);
     blend_box_.onChange = [this] { update_type_ui(); };
 
-    // Description label (below combos)
-    desc_label_.setFont(Font(10.0f));
-    desc_label_.setJustificationType(Justification::centredLeft);
-    desc_label_.setColour(Label::textColourId, Colour(laf_.text_muted()));
-    desc_label_.setInterceptsMouseClicks(false, false);
-    addAndMakeVisible(desc_label_);
+    // desc_label_ not shown -- description text is routed to combo tooltips in update_type_ui / update_mode_ui.
 
     // Knobs
     setup_knob(gain_knob_,      gain_lbl_,      "GAIN");
@@ -69,14 +87,29 @@ NoiseEditor::NoiseEditor(NoisePlugin& plugin)
     setup_knob(output_knob_,    output_lbl_,    "OUTPUT");
 
     gain_knob_     .setTooltip("Gain (g): noise amplitude before mixing. 0 = silent, 1 = full amplitude.");
-    mod_knob_      .setTooltip("Mod (m): injection depth for Saturate and Spectral blend modes. "
-                               "Saturate: y = tanh(x + m*n). Near 0 = subtle shimmer, 0.3+ = grit, 0.5+ = heavy distortion. "
-                               "Spectral: |X_k|' = |X_k|*(1 + m*n_k). Near 0 = gentle spectral shimmer, 0.5+ = strong per-bin modulation.");
+    mod_knob_      .setTooltip("Mod (m): Saturate/Spectral/Phase Random: injection depth. "
+                               "Saturate: y = tanh(x + m*n). "
+                               "Spectral: |X_k|' = |X_k|*(1 + m*n_k). "
+                               "Phase Rnd: phase rotation depth (0 = none, 1 = full +-pi). "
+                               "Modal: T60 decay time (0 = 0.1 s percussive, 1 = 6 s bell ring). "
+                               "Simplex: persistence / spectral slope (0.5 = brown-like, 0.95 = near-white). "
+                               "Simplex 2D: how strongly input level drives the y-axis (0 = ignore input, 1 = full range). "
+                               "Gendyn: mutation rate per breakpoint crossing (0 = frozen quasi-periodic tone, 1 = rapid noise evolution).");
     size_knob_     .setTooltip("Size (s): Granular: grain length (5-500 ms). "
-                               "Residual: LP smoothing time -- smaller = higher HP cutoff = more texture.");
+                               "Residual: LP smoothing time -- smaller = higher HP cutoff. "
+                               "Lorenz: integration step dt (small = low/slow, large = high/fast). "
+                               "Modal: fundamental frequency of mode 1 (100-2000 Hz). "
+                               "Fdbk Comb: comb delay time -- sets the comb frequency (1/delay). "
+                               "Simplex / Simplex 2D: noise evolution speed (0.5 Hz at min, 50 Hz at max). "
+                               "Gendyn: average breakpoint duration (small = high pitch / fast cycle, large = low / sub-audio).");
     density_knob_  .setTooltip("Density (d): Granular: grain spawn rate (0=sparse, 1=dense). "
                                "Coupled: chaos coupling level (0=periodic, 1=fully chaotic). "
-                               "Diffuse: allpass coefficient (0=transparent, 1=heavily diffused).");
+                               "Diffuse: allpass coefficient (0=transparent, 1=heavily diffused). "
+                               "Lorenz: rho parameter (0=near bifurcation/ordered, 1=fully chaotic). "
+                               "Modal: inharmonicity B (0=harmonic bar modes, 1=strongly inharmonic). "
+                               "Fdbk Comb: feedback gain (0=no resonance, 0.98=near self-oscillation). "
+                               "Simplex / Simplex 2D: fBm octave count (0=1 octave, 1=8 octaves). "
+                               "Gendyn: breakpoint count (0=2 points near-triangular wave, 1=16 points complex waveform).");
     threshold_knob_.setTooltip("Threshold: Follow/Gated modes -- input level that activates noise (dBFS).");
     attack_knob_   .setTooltip("Attack: Follow/Gated modes -- time for noise to fade IN after signal exceeds threshold. Range 0.1-500 ms.");
     release_knob_  .setTooltip("Release: Follow/Gated modes -- time for noise to fade OUT after signal drops. Range 1-5000 ms.");
@@ -121,49 +154,80 @@ void NoiseEditor::setup_knob(Slider& k, Label& l, const String& name)
 
 void NoiseEditor::update_type_ui()
 {
-    const int idx = type_box_.getSelectedItemIndex();
-    const int  bidx       = blend_box_.getSelectedItemIndex();
-    const bool mod_active = (bidx == 2 || bidx == 3);  // Saturate or Spectral
-    // SIZE active for Granular and Residual; DENSITY active for Granular, Coupled, Diffuse
-    const bool size_active    = (idx == 3 || idx == 4);
-    const bool density_active = (idx == 3 || idx == 5 || idx == 6);
+    // Use item ID (not index) so separator lines don't shift the value
+    const int idx  = type_box_ .getSelectedId() - 1;  // 0-based enum value
+    const int bidx = blend_box_.getSelectedItemIndex();
+
+    // MOD: Saturate/Spectral/PhaseRandom/InfrasonicAM/Roughness blends;
+    //      Modal(15) T60, Simplex(6) persistence, SimplexDriven(16) y-depth,
+    //      Gendyn(9) mutation, Duffing(8) omega, HarshWall(10) saturation
+    const bool mod_active     = (bidx == 2 || bidx == 3 || bidx == 4 || bidx == 6 || bidx == 7 ||
+                                  idx == 6 || idx == 8 || idx == 9 || idx == 10 || idx == 15 || idx == 16);
+    // SIZE: Granular(4), FeedbackComb(5), Simplex(6), Lorenz(7), Duffing(8), Gendyn(9),
+    //       HarshWall(10), Chua(11), Residual(12), Modal(15), SimplexDriven(16)
+    const bool size_active    = (idx == 4 || idx == 5 || idx == 6 || idx == 7 || idx == 8 ||
+                                  idx == 9 || idx == 10 || idx == 11 || idx == 12 || idx == 15 || idx == 16);
+    // DENSITY: Granular(4), FeedbackComb(5), Simplex(6), Lorenz(7), Duffing(8), Gendyn(9),
+    //          HarshWall(10), Chua(11), Coupled(13), Diffuse(14), Modal(15), SimplexDriven(16)
+    const bool density_active = (idx == 4 || idx == 5 || idx == 6 || idx == 7 || idx == 8 ||
+                                  idx == 9 || idx == 10 || idx == 11 || idx == 13 || idx == 14 || idx == 15 || idx == 16);
 
     size_knob_   .setEnabled(size_active);    size_knob_   .setAlpha(size_active    ? 1.0f : 0.4f);
     density_knob_.setEnabled(density_active); density_knob_.setAlpha(density_active ? 1.0f : 0.4f);
     mod_knob_    .setEnabled(mod_active);     mod_knob_    .setAlpha(mod_active      ? 1.0f : 0.4f);
 
-    static const char* type_descs[7] = {
+    // Descriptions indexed by enum value (0-16). Must stay in sync with NoiseType enum order.
+    static const char* type_descs[17] = {
+        // 0-3: coloured noise
         "White -- flat spectrum, equal energy at all frequencies. Broadband hiss.",
         "Pink -- -3 dB/oct (1/f). More low-frequency energy. Warmer, natural sounding noise.",
+        "Blue -- +3 dB/oct (differentiated white noise: n = w - w_prev). High-frequency emphasis; air, presence, sibilance. No active parameters.",
         "Brown -- -6 dB/oct (1/f^2). Deep rumble and low roar. Brownian motion.",
+        // 4-11: structured independent noise
         "Granular -- Hann-windowed noise bursts. SIZE and DENSITY control texture.",
+        "Feedback Comb -- resonant comb filter on white noise. SIZE = delay/pitch, DENSITY = feedback (resonance). Deep drone at long SIZE; metallic ring at short.",
+        "Simplex -- smooth fBm coherent noise. Evolves without random jumps. SIZE = speed (0.5-50 Hz), DENSITY = octaves (1-8), MOD = persistence (spectral slope).",
+        "Lorenz -- Lorenz attractor (RK4). SIZE = integration step (small = low/slow, large = high/fast). DENSITY = rho (low = ordered, high = chaotic).",
+        "Duffing -- forced double-well oscillator (RK4). Transitions from periodic to chaotic with DENSITY. SIZE = integration step (speed/pitch), DENSITY = forcing amplitude (0.3=near-periodic, 1.2=strongly chaotic), MOD = forcing frequency (0.9-1.5 rad/s).",
+        "Gendyn -- Xenakis stochastic waveform. N breakpoints mutate each cycle via random walk. SIZE = period/pitch, DENSITY = breakpoints (2-16), MOD = mutation rate (0=frozen tone, 1=evolving noise).",
+        "Harsh Wall -- 4 parallel linear comb filters (prime delays 7:11:17:23 * scale). SIZE = spectral center (~6kHz at min, ~200Hz at max). DENSITY = comb feedback 0.50-0.95. MOD = output saturation drive 1-15.",
+        "Chua's Circuit -- piecewise-linear 3D chaos with double-scroll attractor. Intermittent pitch-switching between two lobes; different character from Lorenz/Duffing. SIZE = integration step (speed/pitch), DENSITY = alpha 5-12 (shapes attractor, controls spectral density).",
+        // 12-16: input-reactive
         "Residual -- high-pass residual of input: n = x - LP(x). SIZE sets LP cutoff (small = high-pass).",
         "Coupled -- logistic chaos driven by input energy. DENSITY sets base chaos level.",
         "Diffuse -- Schroeder allpass cascade of input. Same spectrum, smeared in time. DENSITY sets diffusion.",
+        "Modal -- inharmonic resonator bank excited by input. SIZE = fundamental freq (100-2000 Hz). DENSITY = inharmonicity B. MOD = T60 decay time.",
+        "Simplex 2D -- 2D simplex field navigated by input level (y-axis). Each dynamic maps to a distinct texture region. SIZE = speed, DENSITY = octaves, MOD = y-axis depth.",
     };
-    static const char* mode_suffixes[3] = {
-        "  |  Follow: noise amplitude tracks input envelope.",
-        "  |  Gated: noise snaps on/off at THRESHOLD (smoothed by ATTACK/RELEASE).",
-        "",
+    if (idx >= 0 && idx < 17)
+        type_box_.setTooltip(type_descs[idx]);
+
+    static const char* blend_tooltips[8] = {
+        "Add: y = (1-mix)*x + mix*n. Dry/wet blend of input with noise.",
+        "AM: y = x*(1 + mix*n). Noise amplitude-modulates the signal. Output peaks at +6 dB at full mix.",
+        "Saturate: y = lerp(x, tanh(x + mod*n), mix). MOD controls noise injection depth into the saturation.",
+        "Spectral: per-bin magnitude scaling -- |X_k|' = |X_k|*(1 + mod*n_k). MOD controls depth. ~11 ms latency.",
+        "Phase Random: OLA bin phase randomization by MOD depth. Preserves magnitudes, smears transients. ~11 ms latency.",
+        "Ring Mod: y = (1-mix)*x + mix*(x*n). Suppressed-carrier AM -- only sidebands remain at full mix.",
+        "Infrasonic AM: sub-20 Hz LFO amplitude-modulates the signal. y = x*(1 + mix*sin(2*pi*f*t)). MOD = frequency (0.1-19 Hz), MIX = depth. Creates psychoacoustic unease and low-frequency pulsing.",
+        "Roughness: ring modulation at sub-200 Hz carrier. y = (1-mix)*x + mix*(x*sin(2*pi*fc*t)). MOD = carrier frequency (20-200 Hz). Adds sidebands within one critical bandwidth of each harmonic -- directly targets Plomp-Levelt roughness. MIX = depth.",
     };
-    static const char* blend_suffixes[4] = {
-        "",
-        "  |  AM: y = x*(1 + mix*n) -- noise amplitude-modulates the signal.",
-        "  |  Saturate: y = lerp(x, tanh(x + mod*n), mix) -- noise-driven soft clip.",
-        "  |  Spectral: |X_k|' = |X_k|*(1 + mod*n_k) per FFT bin. ~11 ms latency.",
-    };
-    const int midx = mode_box_.getSelectedItemIndex();
-    String desc = (idx >= 0 && idx < 7) ? String(type_descs[idx]) : String();
-    if (midx >= 0 && midx <= 1) desc += mode_suffixes[midx];
-    if (bidx >= 1 && bidx <= 3) desc += blend_suffixes[bidx];
-    desc_label_.setText(desc, dontSendNotification);
+    if (bidx >= 0 && bidx < 8)
+        blend_box_.setTooltip(blend_tooltips[bidx]);
 
     rebuild_preview();
 }
 
 void NoiseEditor::update_mode_ui()
 {
-    const int  idx      = mode_box_.getSelectedItemIndex();
+    static const char* mode_tooltips[3] = {
+        "Follow: noise amplitude tracks input envelope above THRESHOLD. Noise fades out as signal drops below threshold.",
+        "Gated: noise gates on/off when input crosses THRESHOLD. Binary open/close, smoothed by ATTACK/RELEASE.",
+        "Always On: noise runs continuously at fixed gain. THRESHOLD, ATTACK and RELEASE are inactive.",
+    };
+    const int idx = mode_box_.getSelectedItemIndex();
+    if (idx >= 0 && idx < 3)
+        mode_box_.setTooltip(mode_tooltips[idx]);
     const bool envelope = (idx == 0 || idx == 1);  // Follow or Gated
     threshold_knob_.setEnabled(envelope); threshold_knob_.setAlpha(envelope ? 1.0f : 0.4f);
     attack_knob_   .setEnabled(envelope); attack_knob_   .setAlpha(envelope ? 1.0f : 0.4f);
@@ -191,6 +255,12 @@ void NoiseEditor::rebuild_preview()
 
 void NoiseEditor::timerCallback()
 {
+    // Sync type combo with APVTS (handles host automation and preset loads)
+    const int typeId = juce::roundToInt(
+        plugin_.get_apvts().getRawParameterValue("noise_type")->load()) + 1;
+    if (type_box_.getSelectedId() != typeId)
+        type_box_.setSelectedId(typeId, dontSendNotification);
+
     trail_    [trail_write_] = plugin_.get_output_sample();
     dry_trail_[trail_write_] = plugin_.get_dry_sample();
     trail_write_ = (trail_write_ + 1) % kTrailSize;
@@ -205,10 +275,9 @@ void NoiseEditor::resized()
     const int w    = getWidth();
     const int colw = (w - kPadX * 2) / kNumCols;
 
-    type_box_ .setBounds(kPadX,                    kComboY, kComboW, kComboH);
-    mode_box_ .setBounds(kPadX + kComboW + 8,      kComboY, kComboW, kComboH);
+    type_box_ .setBounds(kPadX,                     kComboY, kComboW, kComboH);
+    mode_box_ .setBounds(kPadX + kComboW + 8,       kComboY, kComboW, kComboH);
     blend_box_.setBounds(kPadX + (kComboW + 8) * 2, kComboY, kComboW, kComboH);
-    desc_label_.setBounds(kPadX, kComboY + kComboH + 4, w - kPadX * 2, kComboH);
 
     auto kx = [&](int col) { return kPadX + col * colw + colw / 2 - kKnobSize / 2; };
     auto lx = [&](int col) { return kPadX + col * colw + colw / 2 - 36; };
@@ -234,21 +303,6 @@ void NoiseEditor::paint(Graphics& g)
     g.fillAll(Colour(laf_.background()));
 
     draw_preview(g, Rectangle<int>(0, kDispY, kWidth, kDispH));
-
-    const int w    = getWidth();
-    const int colw = (w - kPadX * 2) / kNumCols;
-    const char* col_labels[] = { "GAIN", "MOD", "SIZE", "DENSITY", "THRESHOLD", "ATTACK", "RELEASE", "MIX", "OUTPUT" };
-    g.setFont(Font(8.5f, Font::bold));
-    g.setColour(Colour(laf_.text_muted()));
-    for (int c = 0; c < kNumCols; ++c) {
-        const int cx = kPadX + c * colw + colw / 2;
-        g.drawText(col_labels[c], cx - 36, kLabelY, 72, kLabelH, Justification::centred);
-    }
-
-    g.setColour(Colour(laf_.border()));
-    g.fillRect(kPadX, kSep1Y, w - kPadX * 2, 1);
-    g.fillRect(kPadX, kSep2Y, w - kPadX * 2, 1);
-    g.fillRect(kPadX, kSep3Y, w - kPadX * 2, 1);
 
     g.setFont(Font(12.0f));
     g.setColour(Colour(laf_.accent_colour()));

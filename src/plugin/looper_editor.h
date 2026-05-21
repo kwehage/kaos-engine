@@ -56,30 +56,23 @@ private:
 
     // ── Layout ────────────────────────────────────────────────────────────────
     static constexpr int kWidth       = 700;
-    static constexpr int kHeight      = 340;
+    static constexpr int kHeight      = 329;
     static constexpr int kHeaderH     = 24;
-    static constexpr int kWaveY       = kHeaderH;
+    static constexpr int kWaveY       = kHeaderH;                    // 24
     static constexpr int kWaveH       = 130;
-    static constexpr int kSep1Y       = kWaveY + kWaveH + 2;
-    static constexpr int kTransY      = kSep1Y + 4;
+    static constexpr int kTransY      = kWaveY + kWaveH + 4;         // 158
     static constexpr int kTransH      = 28;
     static constexpr int kBtnW        = 70;
-    static constexpr int kSep2Y       = kTransY + kTransH + 4;
-    static constexpr int kComboLblY   = kSep2Y + 4;
+    static constexpr int kComboLblY   = kTransY + kTransH + 4;       // 190
     static constexpr int kComboLblH   = 12;
-    static constexpr int kComboY      = kComboLblY + kComboLblH + 2;
+    static constexpr int kComboY      = kComboLblY + kComboLblH + 2; // 204
     static constexpr int kComboH      = 20;
-    static constexpr int kSep3Y       = kComboY + kComboH + 6;
-    static constexpr int kKnobLblY    = kSep3Y + 4;
-    static constexpr int kKnobLblH    = 13;
-    static constexpr int kKnobY       = kKnobLblY + kKnobLblH + 4;
+    static constexpr int kKnobY       = kComboY + kComboH + 8;       // 232
     static constexpr int kKnobSize    = 54;
-    static constexpr int kValLblY     = kKnobY + kKnobSize;
-    static constexpr int kValLblH     = 13;
-    static constexpr int kFooterY     = kValLblY + kValLblH + 2;
-    static constexpr int kFooterH     = 16;
+    static constexpr int kKnobLblH    = 13;
     static constexpr int kNumCols     = 8;
     static constexpr int kPadX        = 14;
+    static constexpr int kFooterH     = 16;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LooperEditor)
 };

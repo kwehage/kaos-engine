@@ -56,22 +56,18 @@ private:
 
     // ── Layout ───────────────────────────────────────────────────────────────
     static constexpr int kWidth      = 700;
-    static constexpr int kHeight     = 320;
+    static constexpr int kHeight     = 258;
     static constexpr int kComboY     = 8;
     static constexpr int kComboH     = 22;
     static constexpr int kComboW     = 110;
-    static constexpr int kSep1Y      = kComboY + kComboH + 6;
     // Display section
-    static constexpr int kDispY      = kSep1Y + 4;
+    static constexpr int kDispY      = kComboY + kComboH + 8;
     static constexpr int kDispH      = 110;
     static constexpr int kMeterW     = 44;    // GR meter strip width
     static constexpr int kActivityW  = 130;   // gate state indicator width
     // Knob section
-    static constexpr int kSep2Y      = kDispY + kDispH + 4;
-    static constexpr int kLabelY     = kSep2Y + 6;
-    static constexpr int kLabelH     = 13;
-    static constexpr int kKnobY      = kLabelY + kLabelH + 4;
-    static constexpr int kKnobSize   = 56;
+    static constexpr int kKnobY      = kDispY + kDispH + 14;
+    static constexpr int kKnobSize   = 54;
     static constexpr int kKnobLabelH = 13;
     static constexpr int kPadX       = 14;
     static constexpr int kNumCols    = 9;   // THRESH RANGE RATIO ATK HOLD REL HYS OUT MIX
