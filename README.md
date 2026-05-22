@@ -6,6 +6,48 @@ covering a wide range of sonic character.
 
 ---
 
+## Installation
+
+Download the latest release for your platform from the
+[Releases page](../../releases/latest), then copy the plugin bundles to your
+VST3 folder.
+
+**Windows**
+
+Copy the `.vst3` folders into one of:
+- `C:\Program Files\Common Files\VST3` (system-wide, requires Administrator)
+- `%APPDATA%\Common Files\VST3` (current user only, no elevation needed)
+
+```
+kaos-engine-distortion.vst3  ->  C:\Program Files\Common Files\VST3\
+kaos-engine-delay.vst3       ->  C:\Program Files\Common Files\VST3\
+...
+```
+
+**macOS**
+
+Copy the `.vst3` folders into one of:
+- `/Library/Audio/Plug-Ins/VST3` (system-wide)
+- `~/Library/Audio/Plug-Ins/VST3` (current user only)
+
+**Linux**
+
+Copy the `.vst3` folders into one of:
+- `/usr/lib/vst3` (system-wide)
+- `~/.vst3` (current user only)
+
+After copying, rescan plugins in your DAW. The plugins will appear under the
+manufacturer name **kaos-engine**.
+
+**CLAP (kaos-engine::lfo only)**
+
+The release also includes `kaos-engine-lfo.clap`. Copy it to your CLAP folder:
+- Windows: `%APPDATA%\CLAP` or `C:\Program Files\Common Files\CLAP`
+- macOS: `~/Library/Audio/Plug-Ins/CLAP`
+- Linux: `~/.clap`
+
+---
+
 ## Table of Contents
 
 - [Effects](#effects)
