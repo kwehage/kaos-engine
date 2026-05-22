@@ -113,6 +113,7 @@ if os_linux
         dependency('freetype2'),
         dependency('gtk+-3.0'),
         dependency('webkit2gtk-4.1'),
+        dependency('libcurl'),
         dependency('x11').partial_dependency(link_args: false, links: false),
         dependency('xext').partial_dependency(link_args: false, links: false),
         dependency('gl'),
