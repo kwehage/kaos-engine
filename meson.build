@@ -87,14 +87,17 @@ endif
 
 # ── VST3 bundle architecture directory ────────────────────────────────────────
 if os_windows
-    vst3_arch   = host_machine.cpu_family() + '-win'
-    lib_suffix  = '.dll'
+    vst3_arch        = host_machine.cpu_family() + '-win'
+    lib_suffix       = '.dll'
+    vst3_install_dir = 'C:/Program Files/Common Files/VST3'
 elif os_darwin
-    vst3_arch   = 'MacOS'
-    lib_suffix  = '.dylib'
+    vst3_arch        = 'MacOS'
+    lib_suffix       = '.dylib'
+    vst3_install_dir = '/Library/Audio/Plug-Ins/VST3'
 else
-    vst3_arch   = host_machine.cpu_family() + '-linux'
-    lib_suffix  = '.so'
+    vst3_arch        = host_machine.cpu_family() + '-linux'
+    lib_suffix       = '.so'
+    vst3_install_dir = get_option('prefix') / 'lib/vst3'
 endif
 
 # ── System dependencies ────────────────────────────────────────────────────────
