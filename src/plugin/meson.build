@@ -61,6 +61,11 @@ elif os_darwin
     ]
 endif
 
+clap_link_flags = link_flags
+if os_darwin
+    clap_link_flags += ['-Wl,-exported_symbol,_clap_entry']
+endif
+
 # ── VST3 shared library ────────────────────────────────────────────────────────
 vst3_lib = shared_library('kaos-engine-distortion-vst3',
     name_prefix: '',
@@ -1122,7 +1127,7 @@ lfo_clap_lib = shared_library('kaos-engine-lfo',
         '-Wno-deprecated-declarations', '-Wno-non-virtual-dtor', '-Wno-sign-compare',
         '-Wno-unused-parameter',
     ],
-    link_args: plugin_link_flags,
+    link_args: clap_link_flags,
     link_with: lib_juce,
     dependencies: system_deps,
     install: false,

@@ -109,6 +109,7 @@ if os_linux
     system_deps = [
         cc.find_library('dl'),
         cc.find_library('rt'),
+        cc.find_library('asound'),
         dependency('freetype2'),
         dependency('gtk+-3.0'),
         dependency('webkit2gtk-4.1'),
