@@ -48,7 +48,9 @@ elif os_windows
         '-Wno-class-memaccess',
     ]
 elif os_darwin
-    build_flags += ['-DMAC=1']
+    # JUCE unity-build .cpp files include Cocoa headers which use @class / @protocol.
+    # Compiling them as plain C++ fails; ObjC++ mode is required on macOS.
+    build_flags += ['-DMAC=1', '-x', 'objective-c++']
 endif
 
 if not os_darwin
@@ -106,6 +108,7 @@ if os_linux
         cc.find_library('dl'),
         cc.find_library('rt'),
         dependency('freetype2'),
+        dependency('gtk+-3.0'),
         dependency('x11').partial_dependency(link_args: false, links: false),
         dependency('xext').partial_dependency(link_args: false, links: false),
         dependency('gl'),
@@ -125,6 +128,24 @@ elif os_windows
         cc.find_library('winmm'),
         cc.find_library('ws2_32'),
         cc.find_library('dxgi'),
+    ]
+elif os_darwin
+    system_deps = [
+        dependency('appleframeworks', modules: [
+            'Accelerate',
+            'AudioToolbox',
+            'AudioUnit',
+            'Cocoa',
+            'CoreAudio',
+            'CoreFoundation',
+            'CoreMIDI',
+            'CoreServices',
+            'CoreText',
+            'IOKit',
+            'Metal',
+            'QuartzCore',
+            'WebKit',
+        ]),
     ]
 else
     system_deps = []
