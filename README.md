@@ -39,9 +39,11 @@ Copy the `.vst3` folders into one of:
 After copying, rescan plugins in your DAW. The plugins will appear under the
 manufacturer name **kaos-engine**.
 
-**CLAP (kaos-engine::lfo only)**
+**CLAP (modulation controllers)**
 
-The release also includes `kaos-engine-lfo.clap`. Copy it to your CLAP folder:
+The release also includes `.clap` builds of all three modulation controllers:
+`kaos-engine-lfo.clap`, `kaos-engine-stochastic.clap`, and
+`kaos-engine-envelope-follower.clap`. Copy them to your CLAP folder:
 - Windows: `%APPDATA%\CLAP` or `C:\Program Files\Common Files\CLAP`
 - macOS: `~/Library/Audio/Plug-Ins/CLAP`
 - Linux: `~/.clap`
@@ -754,8 +756,9 @@ through unmodified. Four trigger modes control when the oscillator runs and rese
 | Division | Whole / Half / Dotted 1/4 / 1/4 / Dotted 1/8 / 1/8 / 1/8 Triplet / 1/16 | Beat subdivision for tempo-synced mode |
 | Output Mode | MIDI CC / Audio CV / MIDI CC + CV | Which output path(s) are active |
 
-**Plugin formats:** builds as **VST3** and **CLAP**. The CLAP build (`kaos-engine-lfo.clap`)
-enables native parameter modulation routing in Bitwig Studio, Reaper, and FL Studio 2024+.
+**Plugin formats:** builds as **VST3** and **CLAP**. All three modulation controllers
+(`kaos-engine-lfo.clap`, `kaos-engine-stochastic.clap`, `kaos-engine-envelope-follower.clap`)
+enable native parameter modulation routing in Bitwig Studio, Reaper, and FL Studio 2024+.
 
 ---
 
@@ -862,13 +865,13 @@ meson setup build --buildtype=release
 meson compile -C build
 ```
 
-Targets: **Windows** (x86_64, MinGW-w64) and **Linux** (x86_64).
-Output formats: **VST3** (all plugins) and **CLAP** (kaos-engine::lfo).
+Targets: **Windows** (x86_64, MinGW-w64), **macOS** (arm64, macOS 13+), and **Linux** (x86_64).
+Output formats: **VST3** (all plugins) and **CLAP** (modulation controllers: lfo, stochastic, envelope-follower).
 
-**CLAP note:** The `kaos-engine-lfo.clap` file is a shared library with the `.clap`
-extension. Load it in any CLAP-aware host (Bitwig, Reaper, FL Studio 2024+) the same
-way you would a VST3 — point the host's plugin scanner at the build output directory.
-No runtime toggle is required: the format is determined by which file the host loads.
+**CLAP note:** The `.clap` files are shared libraries recognised by CLAP-aware hosts
+(Bitwig, Reaper, FL Studio 2024+). Load them the same way you would a VST3 — point
+the host's plugin scanner at the directory containing the `.clap` files. No runtime
+toggle is required: the format is determined by which file the host loads.
 
 ---
 
