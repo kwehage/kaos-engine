@@ -469,8 +469,8 @@ void ReverbProcessor::process_dattorro(float in_l, float in_r, float& wet_l, flo
     tank_post_r_.write(vr);
     tank_fb_r_ = tank_post_r_.read(tank_post_delay_r_);
 
-    if (std::fabsf(tank_fb_l_) < 1e-15f) tank_fb_l_ = 0.0f;
-    if (std::fabsf(tank_fb_r_) < 1e-15f) tank_fb_r_ = 0.0f;
+    if (std::fabs(tank_fb_l_) < 1e-15f) tank_fb_l_ = 0.0f;
+    if (std::fabs(tank_fb_r_) < 1e-15f) tank_fb_r_ = 0.0f;
 
     wet_l = 0.6f * tank_fb_r_ + 0.4f * tank_post_l_.read(tank_post_delay_l_ / 3 + 1);
     wet_r = 0.6f * tank_fb_l_ + 0.4f * tank_post_r_.read(tank_post_delay_r_ / 3 + 1);
@@ -518,7 +518,7 @@ void ReverbProcessor::process_fdn(float in_l, float in_r, float& wet_l, float& w
     fdn_[1].write(t1 + mono);
     fdn_[2].write(t2 + mono);
     fdn_[3].write(t3 + mono);
-    if (std::fabsf(s[0]) < 1e-15f) { for (int k = 0; k < kNumFdn; ++k) fdn_lp_[k] = 0.0f; }
+    if (std::fabs(s[0]) < 1e-15f) { for (int k = 0; k < kNumFdn; ++k) fdn_lp_[k] = 0.0f; }
     wet_l = (s[0] + s[2]) * 0.5f;
     wet_r = (s[1] + s[3]) * 0.5f;
 }
@@ -532,7 +532,7 @@ void ReverbProcessor::process_gardner(float in_l, float in_r, float& wet_l, floa
     gard_lp_l_ += damp_coeff_ * (yl - gard_lp_l_);
     gard_delay_l_.write(gard_lp_l_);
     gard_fb_l_ = gard_delay_l_.read(gard_delay_l_len_);
-    if (std::fabsf(gard_fb_l_) < 1e-15f) gard_fb_l_ = 0.0f;
+    if (std::fabs(gard_fb_l_) < 1e-15f) gard_fb_l_ = 0.0f;
 
     float yr = in_r + decay_fb_ * gard_fb_r_;
     yr = allpass_mod(gard_ap_r_[0], static_cast<float>(gard_ap_delays_r_[0]) + lfo_depth_ * std::sin(lfo_phase_r_),                in_ap_coeff_,     yr);
@@ -541,7 +541,7 @@ void ReverbProcessor::process_gardner(float in_l, float in_r, float& wet_l, floa
     gard_lp_r_ += damp_coeff_ * (yr - gard_lp_r_);
     gard_delay_r_.write(gard_lp_r_);
     gard_fb_r_ = gard_delay_r_.read(gard_delay_r_len_);
-    if (std::fabsf(gard_fb_r_) < 1e-15f) gard_fb_r_ = 0.0f;
+    if (std::fabs(gard_fb_r_) < 1e-15f) gard_fb_r_ = 0.0f;
 
     wet_l = gard_fb_l_;
     wet_r = gard_fb_r_;
@@ -607,8 +607,8 @@ void ReverbProcessor::process_shimmer(float in_l, float in_r, float& wet_l, floa
     if (pb >= gs) pb -= gs;
 
     // Triangular crossfade windows
-    const float ea = 1.0f - std::fabsf(pa / gs * 2.0f - 1.0f);
-    const float eb = 1.0f - std::fabsf(pb / gs * 2.0f - 1.0f);
+    const float ea = 1.0f - std::fabs(pa / gs * 2.0f - 1.0f);
+    const float eb = 1.0f - std::fabs(pb / gs * 2.0f - 1.0f);
 
     // Read at pitch_factor * (gs - phase): playback speed = pitch_factor, pitch = +12*log2(pf) st
     const float da = std::min(pitch_factor * (gs - pa) + 1.0f,
@@ -650,8 +650,8 @@ void ReverbProcessor::process_shimmer(float in_l, float in_r, float& wet_l, floa
     tank_post_r_.write(vr);
     tank_fb_r_ = tank_post_r_.read(tank_post_delay_r_);
 
-    if (std::fabsf(tank_fb_l_) < 1e-15f) tank_fb_l_ = 0.0f;
-    if (std::fabsf(tank_fb_r_) < 1e-15f) tank_fb_r_ = 0.0f;
+    if (std::fabs(tank_fb_l_) < 1e-15f) tank_fb_l_ = 0.0f;
+    if (std::fabs(tank_fb_r_) < 1e-15f) tank_fb_r_ = 0.0f;
 
     // Feed updated tank feedback into grain buffers for next sample
     shimmer_grain_l_.write(tank_fb_l_);

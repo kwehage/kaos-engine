@@ -218,8 +218,8 @@ void PitchShifterProcessor::process_granular(int vi, float& out_l, float& out_r)
     float pb = pa + gs * 0.5f;
     if (pb >= gs) pb -= gs;
 
-    const float ea = 1.0f - std::fabsf(pa / gs * 2.0f - 1.0f);
-    const float eb = 1.0f - std::fabsf(pb / gs * 2.0f - 1.0f);
+    const float ea = 1.0f - std::fabs(pa / gs * 2.0f - 1.0f);
+    const float eb = 1.0f - std::fabs(pb / gs * 2.0f - 1.0f);
 
     // Delay = gs + (1 - pf) * pa: read pointer advances at rate pf per sample.
     // At pa=0: delay = gs (exactly 1 grain behind write pos, not pf grains behind).
