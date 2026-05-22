@@ -146,6 +146,7 @@ elif os_darwin
             'CoreMIDI',
             'CoreServices',
             'CoreText',
+            'Security',
             'IOKit',
             'Metal',
             'MetalKit',
