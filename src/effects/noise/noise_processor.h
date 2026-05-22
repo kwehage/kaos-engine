@@ -22,11 +22,20 @@ enum class NoiseType : int {
     HarshWall    = 10,  // 4 parallel linear comb filters; SIZE = pitch center, DENSITY = feedback, MOD = saturation depth
     Chua         = 11,  // Chua's circuit double-scroll attractor RK4; SIZE = dt, DENSITY = alpha (5-12)
     // ── Input-reactive (derived from input signal) ───────────────────────────
+    // (12-16 defined below)
     Residual     = 12,  // high-pass residual of input: n = x - LP(x); SIZE = LP cutoff
     Coupled      = 13,  // logistic chaos driven by input energy; DENSITY = base chaos level
     Diffuse      = 14,  // Schroeder allpass diffusion of input; DENSITY = allpass coeff
     Modal        = 15,  // inharmonic modal resonator bank excited by input; SIZE = f1, DENSITY = B, MOD = T60
     SimplexDriven = 16, // 2D simplex; input level navigates y-axis; SIZE = speed, DENSITY = octaves, MOD = y-depth
+    // ── More always-on ───────────────────────────────────────────────────────
+    Velvet      = 17,   // sparse +1/0/-1 impulse sequence; DENSITY = pulse rate (200-6000 Hz)
+    MissingFund = 18,   // harmonics 2f-5f of a sub-bass tone; SIZE = f0 (15-80 Hz), DENSITY = harmonic rolloff, MOD = phase noise
+    DomainWarp  = 19,   // 2-layer domain-warped fBm; SIZE = speed, DENSITY = octaves, MOD = warp depth
+    // ── Input-reactive additions ─────────────────────────────────────────────
+    FrictionScrape = 20, // stick-slip friction excites modal resonators; SIZE = f1, DENSITY = B+threshold, MOD = T60
+    GendynDriven   = 21, // Gendyn mutation rate scales with input level; SIZE = period, DENSITY = N, MOD = base rate
+    KarplusStrong  = 22, // waveguide physical model; SIZE = pitch (2kHz-50Hz), DENSITY = LP damping, MOD = stiffness
 };
 
 enum class NoiseMode : int {
@@ -44,6 +53,8 @@ enum class NoiseBlend : int {
     RingMod      = 5,  // y = (1-mix)*x + mix*(x*n); suppressed-carrier AM
     InfrasonicAM = 6,  // sub-20Hz LFO modulates signal amplitude; MOD = freq (0.1-19 Hz), MIX = depth
     Roughness    = 7,  // ring mod at sub-200Hz carrier; MOD = freq (20-200 Hz), MIX = depth
+    SampleRate   = 8,  // ZOH sample-rate reduction; MOD = decimation factor (1-32x), MIX = depth
+    SpectralEnv  = 9,  // OLA: replace bin magnitudes with target noise slope, preserve phases; MOD = slope (0=flat/white, 1=brown)
 };
 
 // Self-contained per-channel noise generator.
@@ -199,7 +210,7 @@ struct NoiseChannel {
         const float g1 = (spx_hash(i1) & 1u) ? 1.0f : -1.0f;
         n0 = (n0 < 0.0f) ? 0.0f : n0*n0*n0*n0 * g0 * t0;
         n1 = (n1 < 0.0f) ? 0.0f : n1*n1*n1*n1 * g1 * t1;
-        return 2.756f * (n0 + n1);
+        return 110.0f * (n0 + n1);  // corrected: 2.756 is the 2D constant; 1D max is ~0.009
     }
 
     static float fbm1d(float px, int octaves, float persistence) {
@@ -266,6 +277,44 @@ struct NoiseChannel {
         return val;
     }
 
+    // Domain-warped fBm: evaluate fBm, use result as offset coordinate for a second fBm pass.
+    // Creates swirling turbulent texture unlike regular simplex.
+    float dw_x_ = 0.0f;
+
+    float domain_warp(float step, int octaves, float warp) {
+        const float d1  = fbm1d(dw_x_,            octaves, 0.5f);
+        const float val = fbm1d(dw_x_ + warp * d1, octaves, 0.5f);
+        dw_x_ += step;
+        return val;
+    }
+
+    // Friction scraping: stick-slip model drives the modal resonator bank.
+    // friction_vel_ is the smoothed input envelope ("bow velocity").
+    float friction_vel_ = 0.0f;
+
+    // Inharmonic Karplus-Strong: delay line + LP damping + stiffness allpass.
+    // Input continuously excites the waveguide, producing bell/string resonance
+    // that responds to playing dynamics.
+    static constexpr int kKsCap  = 1024;
+    static constexpr int kKsMask = 1023;
+    float ks_buf_[kKsCap] {};
+    int   ks_pos_  = 0;
+    float ks_lp_   = 0.0f;
+    float ks_ap_x_ = 0.0f, ks_ap_y_ = 0.0f;
+
+    float ks(float x, int D, float lp_coeff, float stiffness) {
+        const int rpos = (ks_pos_ - D + kKsCap) & kKsMask;
+        // LP (damping): lp_coeff near 0.99 = bright/long, near 0.90 = dark/short
+        ks_lp_ = lp_coeff * ks_lp_ + (1.0f - lp_coeff) * ks_buf_[rpos];
+        // Stiffness allpass H(z) = (a + z^-1)/(1 + a*z^-1): disperses harmonics upward
+        const float ap_out = stiffness * (ks_lp_ - ks_ap_y_) + ks_ap_x_;
+        ks_ap_x_ = ks_lp_;
+        ks_ap_y_ = ap_out;
+        ks_buf_[ks_pos_] = ap_out + x * 0.3f;  // feedback + continuous excitation
+        ks_pos_ = (ks_pos_ + 1) & kKsMask;
+        return ap_out;
+    }
+
     // Blue noise: differentiate white noise (+3 dB/oct)
     float blue_prev_ = 0.0f;
     float blue() {
@@ -312,6 +361,42 @@ struct NoiseChannel {
         chua_y_ += (dt/6.0f)*(k1y+2*k2y+2*k3y+k4y);
         chua_z_ += (dt/6.0f)*(k1z+2*k2z+2*k3z+k4z);
         return chua_x_ * 0.4f;  // x ranges ~+-2.5, normalise to ~+-1
+    }
+
+    // Velvet noise: one +-1 impulse per window of M samples (no multiplications needed).
+    int   vn_pos_       = 0;
+    int   vn_pulse_pos_ = 0;
+
+    // density_hz: pulses per second (200-6000). M = fs/density_hz.
+    float velvet(float density_hz, float sample_rate) {
+        const int M = std::max(2, int(sample_rate / density_hz));
+        const float out = (vn_pos_ == vn_pulse_pos_) ?
+                          (randbi() > 0.0f ? 1.0f : -1.0f) : 0.0f;
+        if (++vn_pos_ >= M) {
+            vn_pos_ = 0;
+            vn_pulse_pos_ = int((randbi() * 0.5f + 0.5f) * float(M - 1) + 0.5f);
+            vn_pulse_pos_ = std::clamp(vn_pulse_pos_, 0, M - 1);
+        }
+        return out;
+    }
+
+    // Missing fundamental: harmonics 2f, 3f, 4f, 5f without the fundamental.
+    // The auditory system infers f0 even though it is absent -- implies sub-bass.
+    float mf_phases_[4] = {};
+
+    float missing_fund(float f0, float sample_rate, float rolloff, float phase_noise) {
+        constexpr float kTwoPi  = 6.28318530717958647692f;
+        constexpr float kWeights[4] = {1.0f, 0.70f, 0.50f, 0.40f};
+        float out = 0.0f;
+        for (int k = 0; k < 4; ++k) {
+            const float freq = f0 * float(k + 2);  // 2f, 3f, 4f, 5f
+            mf_phases_[k] += freq / sample_rate + randbi() * phase_noise * 0.0003f;
+            if (mf_phases_[k] >= 1.0f) mf_phases_[k] -= 1.0f;
+            if (mf_phases_[k] <  0.0f) mf_phases_[k] += 1.0f;
+            out += kWeights[k] * std::pow(rolloff, float(k))
+                 * std::sin(kTwoPi * mf_phases_[k]);
+        }
+        return out * 0.4f;  // normalise to ~+-1
     }
 
     // HNW: 4 parallel LINEAR comb filters (no in-loop saturation).
@@ -464,6 +549,9 @@ private:
 
     float infrasonic_phase_ = 0.0f;
     float roughness_phase_  = 0.0f;
+    float sr_phase_         = 0.0f;  // SampleRate blend: position within decimation window
+    float sr_hold_l_        = 0.0f;
+    float sr_hold_r_        = 0.0f;
 
     // Modal resonator coefficients (shared L/R; recomputed lazily when params change)
     static constexpr int kModalModes = 8;

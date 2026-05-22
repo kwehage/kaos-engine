@@ -29,17 +29,23 @@ NoiseEditor::NoiseEditor(NoisePlugin& plugin)
     type_box_.addItem("Gendyn",        10);
     type_box_.addItem("Harsh Wall",    11);
     type_box_.addItem("Chua's Circuit", 12);
+    type_box_.addItem("Velvet",        18);
+    type_box_.addItem("Missing Fund",  19);
+    type_box_.addItem("Domain Warp",   20);
     type_box_.addSeparator();
     type_box_.addItem("Residual",      13);
     type_box_.addItem("Coupled",       14);
     type_box_.addItem("Diffuse",       15);
     type_box_.addItem("Modal",         16);
     type_box_.addItem("Simplex 2D",    17);
+    type_box_.addItem("Friction Scrape", 21);
+    type_box_.addItem("Gendyn Driven",   22);
+    type_box_.addItem("Karplus-Strong",  23);
     type_box_.setScrollWheelEnabled(false);
     addAndMakeVisible(type_box_);
-    // Initial value from APVTS
-    type_box_.setSelectedId(juce::roundToInt(ap.getRawParameterValue("noise_type")->load()) + 1,
-                            dontSendNotification);
+    // Initial value from APVTS -- use getIndex() not raw float (raw stores normalized 0-1)
+    if (auto* tp = dynamic_cast<juce::AudioParameterChoice*>(ap.getParameter("noise_type")))
+        type_box_.setSelectedId(tp->getIndex() + 1, dontSendNotification);
     type_box_.onChange = [this, &ap] {
         const int id = type_box_.getSelectedId();
         if (id > 0)
@@ -67,6 +73,8 @@ NoiseEditor::NoiseEditor(NoisePlugin& plugin)
     blend_box_.addItem("Ring Mod",  6);
     blend_box_.addItem("Infrasonic AM", 7);
     blend_box_.addItem("Roughness",    8);
+    blend_box_.addItem("Sample Rate",  9);
+    blend_box_.addItem("Spectral Envelope", 10);
     blend_box_.setScrollWheelEnabled(false);
     addAndMakeVisible(blend_box_);
     blend_attach_ = std::make_unique<AudioProcessorValueTreeState::ComboBoxAttachment>(
@@ -158,26 +166,33 @@ void NoiseEditor::update_type_ui()
     const int idx  = type_box_ .getSelectedId() - 1;  // 0-based enum value
     const int bidx = blend_box_.getSelectedItemIndex();
 
-    // MOD: Saturate/Spectral/PhaseRandom/InfrasonicAM/Roughness blends;
-    //      Modal(15) T60, Simplex(6) persistence, SimplexDriven(16) y-depth,
-    //      Gendyn(9) mutation, Duffing(8) omega, HarshWall(10) saturation
-    const bool mod_active     = (bidx == 2 || bidx == 3 || bidx == 4 || bidx == 6 || bidx == 7 ||
-                                  idx == 6 || idx == 8 || idx == 9 || idx == 10 || idx == 15 || idx == 16);
+    // MOD: Saturate/Spectral/PhaseRandom/InfrasonicAM/Roughness/SampleRate/SpectralEnv blends;
+    //      Simplex(6) persistence, Duffing(8) omega, Gendyn(9) mutation, HarshWall(10) saturation,
+    //      Modal(15) T60, SimplexDriven(16) y-depth, MissingFund(18) phase noise,
+    //      DomainWarp(19) warp depth, FrictionScrape(20) T60, GendynDriven(21) base rate, KarplusStrong(22) stiffness
+    const bool mod_active     = (bidx == 2 || bidx == 3 || bidx == 4 || bidx == 6 || bidx == 7 || bidx == 8 || bidx == 9 ||
+                                  idx == 6 || idx == 8 || idx == 9 || idx == 10 || idx == 15 || idx == 16 ||
+                                  idx == 18 || idx == 19 || idx == 20 || idx == 21 || idx == 22);
     // SIZE: Granular(4), FeedbackComb(5), Simplex(6), Lorenz(7), Duffing(8), Gendyn(9),
-    //       HarshWall(10), Chua(11), Residual(12), Modal(15), SimplexDriven(16)
+    //       HarshWall(10), Chua(11), Residual(12), Modal(15), SimplexDriven(16), MissingFund(18),
+    //       DomainWarp(19), FrictionScrape(20), GendynDriven(21), KarplusStrong(22)
     const bool size_active    = (idx == 4 || idx == 5 || idx == 6 || idx == 7 || idx == 8 ||
-                                  idx == 9 || idx == 10 || idx == 11 || idx == 12 || idx == 15 || idx == 16);
+                                  idx == 9 || idx == 10 || idx == 11 || idx == 12 || idx == 15 ||
+                                  idx == 16 || idx == 18 || idx == 19 || idx == 20 || idx == 21 || idx == 22);
     // DENSITY: Granular(4), FeedbackComb(5), Simplex(6), Lorenz(7), Duffing(8), Gendyn(9),
-    //          HarshWall(10), Chua(11), Coupled(13), Diffuse(14), Modal(15), SimplexDriven(16)
+    //          HarshWall(10), Chua(11), Coupled(13), Diffuse(14), Modal(15), SimplexDriven(16),
+    //          Velvet(17), MissingFund(18), DomainWarp(19), FrictionScrape(20), GendynDriven(21), KarplusStrong(22)
     const bool density_active = (idx == 4 || idx == 5 || idx == 6 || idx == 7 || idx == 8 ||
-                                  idx == 9 || idx == 10 || idx == 11 || idx == 13 || idx == 14 || idx == 15 || idx == 16);
+                                  idx == 9 || idx == 10 || idx == 11 || idx == 13 || idx == 14 ||
+                                  idx == 15 || idx == 16 || idx == 17 || idx == 18 ||
+                                  idx == 19 || idx == 20 || idx == 21 || idx == 22);
 
     size_knob_   .setEnabled(size_active);    size_knob_   .setAlpha(size_active    ? 1.0f : 0.4f);
     density_knob_.setEnabled(density_active); density_knob_.setAlpha(density_active ? 1.0f : 0.4f);
     mod_knob_    .setEnabled(mod_active);     mod_knob_    .setAlpha(mod_active      ? 1.0f : 0.4f);
 
     // Descriptions indexed by enum value (0-16). Must stay in sync with NoiseType enum order.
-    static const char* type_descs[17] = {
+    static const char* type_descs[23] = {
         // 0-3: coloured noise
         "White -- flat spectrum, equal energy at all frequencies. Broadband hiss.",
         "Pink -- -3 dB/oct (1/f). More low-frequency energy. Warmer, natural sounding noise.",
@@ -198,11 +213,20 @@ void NoiseEditor::update_type_ui()
         "Diffuse -- Schroeder allpass cascade of input. Same spectrum, smeared in time. DENSITY sets diffusion.",
         "Modal -- inharmonic resonator bank excited by input. SIZE = fundamental freq (100-2000 Hz). DENSITY = inharmonicity B. MOD = T60 decay time.",
         "Simplex 2D -- 2D simplex field navigated by input level (y-axis). Each dynamic maps to a distinct texture region. SIZE = speed, DENSITY = octaves, MOD = y-axis depth.",
+        // 17-18: more always-on
+        "Velvet -- sparse +1/0/-1 impulse sequence (one pulse per window of M samples). Multiplication-free; sounds reverberant and airy. DENSITY = pulse rate 200-6000 Hz (sparse clicks at low, dense shimmer at high).",
+        "Missing Fund -- harmonics 2f, 3f, 4f, 5f without the fundamental f0. Auditory system infers the absent bass note -- implies sub-bass on small speakers. SIZE = f0 (15-80 Hz), DENSITY = harmonic rolloff (0.3=sparse, 0.95=rich), MOD = phase noise (0=pure tones, 1=drifting texture).",
+        // 19: always-on
+        "Domain Warp -- 2-layer domain-warped fBm. First fBm pass generates a displacement; second pass evaluates at the warped position. Creates swirling turbulent texture unlike regular simplex. SIZE = speed, DENSITY = octaves (1-8), MOD = warp depth (0=regular fBm, 1=heavily turbulent).",
+        // 20-22: input-reactive
+        "Friction Scrape -- stick-slip bow model driving an inharmonic modal resonator bank. Below threshold: smooth proportional force (sticking). Above: saturated Coulomb friction + scraping noise (slipping). Creaking, scraping, metallic. SIZE = modal f1 (100-2000 Hz), DENSITY = inharmonicity + slip threshold, MOD = T60 decay.",
+        "Gendyn Driven -- Xenakis GENDYN stochastic waveform where input amplitude modulates mutation rate. Quiet input = near-frozen quasi-periodic waveform. Loud input = rapid stochastic mutation toward noise. SIZE = period/pitch, DENSITY = breakpoints (2-16), MOD = base mutation rate.",
+        "Karplus-Strong -- inharmonic waveguide physical model. Input continuously excites a delay line with LP damping and stiffness allpass in the feedback loop. SIZE = pitch (2kHz=metallic bell, 50Hz=deep plate), DENSITY = LP damping (0=bright+long, 1=dark+short), MOD = stiffness (0=harmonic, 1=inharmonic bell).",
     };
-    if (idx >= 0 && idx < 17)
+    if (idx >= 0 && idx < 23)
         type_box_.setTooltip(type_descs[idx]);
 
-    static const char* blend_tooltips[8] = {
+    static const char* blend_tooltips[10] = {
         "Add: y = (1-mix)*x + mix*n. Dry/wet blend of input with noise.",
         "AM: y = x*(1 + mix*n). Noise amplitude-modulates the signal. Output peaks at +6 dB at full mix.",
         "Saturate: y = lerp(x, tanh(x + mod*n), mix). MOD controls noise injection depth into the saturation.",
@@ -211,8 +235,10 @@ void NoiseEditor::update_type_ui()
         "Ring Mod: y = (1-mix)*x + mix*(x*n). Suppressed-carrier AM -- only sidebands remain at full mix.",
         "Infrasonic AM: sub-20 Hz LFO amplitude-modulates the signal. y = x*(1 + mix*sin(2*pi*f*t)). MOD = frequency (0.1-19 Hz), MIX = depth. Creates psychoacoustic unease and low-frequency pulsing.",
         "Roughness: ring modulation at sub-200 Hz carrier. y = (1-mix)*x + mix*(x*sin(2*pi*fc*t)). MOD = carrier frequency (20-200 Hz). Adds sidebands within one critical bandwidth of each harmonic -- directly targets Plomp-Levelt roughness. MIX = depth.",
+        "Sample Rate: ZOH decimation -- holds each new sample for N samples, creating aliasing at fs/N. y = (1-mix)*x + mix*held. MOD = decimation factor 1-32x (1=bypass, 32=1.4 kHz effective rate). MIX = depth.",
+        "Spectral Env: OLA -- replace each bin's magnitude with a target noise-colored value while preserving the input's phase structure. The input's rhythmic and transient content (in the phases) drives the texture, but the spectrum is substituted. MOD = slope (0=flat/white, 1=brown/steep). MIX = depth. ~11 ms latency.",
     };
-    if (bidx >= 0 && bidx < 8)
+    if (bidx >= 0 && bidx < 10)
         blend_box_.setTooltip(blend_tooltips[bidx]);
 
     rebuild_preview();
@@ -255,11 +281,14 @@ void NoiseEditor::rebuild_preview()
 
 void NoiseEditor::timerCallback()
 {
-    // Sync type combo with APVTS (handles host automation and preset loads)
-    const int typeId = juce::roundToInt(
-        plugin_.get_apvts().getRawParameterValue("noise_type")->load()) + 1;
-    if (type_box_.getSelectedId() != typeId)
-        type_box_.setSelectedId(typeId, dontSendNotification);
+    // Sync type combo with APVTS (handles host automation and preset loads).
+    // Use getIndex() not roundToInt(raw_float): raw stores normalized 0-1, not the integer index.
+    if (auto* tp = dynamic_cast<juce::AudioParameterChoice*>(
+            plugin_.get_apvts().getParameter("noise_type"))) {
+        const int typeId = tp->getIndex() + 1;
+        if (type_box_.getSelectedId() != typeId)
+            type_box_.setSelectedId(typeId, dontSendNotification);
+    }
 
     trail_    [trail_write_] = plugin_.get_output_sample();
     dry_trail_[trail_write_] = plugin_.get_dry_sample();

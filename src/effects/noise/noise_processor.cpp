@@ -34,6 +34,9 @@ void NoiseProcessor::reset()
     gate_smooth_      = 0.0f;
     infrasonic_phase_ = 0.0f;
     roughness_phase_  = 0.0f;
+    sr_phase_         = 0.0f;
+    sr_hold_l_        = 0.0f;
+    sr_hold_r_        = 0.0f;
 }
 
 void NoiseProcessor::update_grain_params()
@@ -94,11 +97,26 @@ float NoiseProcessor::noise_sample(NoiseChannel& ch) const
             const float omega = 0.9f + mod_ * 0.6f;         // 0.9-1.5 forcing frequency
             return const_cast<NoiseChannel&>(ch).duffing(dt, gamma, omega);
         }
+        case NoiseType::DomainWarp: {
+            const int   octaves = 1 + int(density_ * 7.0f);
+            const float warp    = mod_ * 8.0f;  // 0=regular fBm, 8=heavy turbulent warp
+            return const_cast<NoiseChannel&>(ch).domain_warp(simplex_step_, octaves, warp);
+        }
+        case NoiseType::Velvet: {
+            const float density_hz = 200.0f + density_ * 5800.0f;  // 200-6000 pulses/sec
+            return const_cast<NoiseChannel&>(ch).velvet(density_hz, float(sample_rate_));
+        }
+        case NoiseType::MissingFund: {
+            // SIZE maps grain_size_ms_ (5-500ms) to f0 (15-80 Hz)
+            const float f0      = 15.0f + (grain_size_ms_ - 5.0f) / 495.0f * 65.0f;
+            const float rolloff = 0.30f + density_ * 0.65f;  // 0.30=sparse harmonics, 0.95=rich
+            return const_cast<NoiseChannel&>(ch).missing_fund(f0, float(sample_rate_), rolloff, mod_);
+        }
         case NoiseType::Blue:
             return const_cast<NoiseChannel&>(ch).blue();
         case NoiseType::Chua: {
             const float dt    = grain_size_ms_ * 0.0002f;   // 5ms->0.001, 500ms->0.1
-            const float alpha = 5.0f + density_ * 7.0f;     // 5-12: shapes double-scroll attractor
+            const float alpha = 9.0f + density_ * 3.0f;     // 9-12: all values in chaotic regime
             return const_cast<NoiseChannel&>(ch).chua(dt, alpha);
         }
         case NoiseType::HarshWall: {
@@ -149,6 +167,47 @@ float NoiseProcessor::derived_noise_sample(NoiseChannel& ch, float x) const
             const int   octaves   = 1 + int(density_ * 7.0f);
             return const_cast<NoiseChannel&>(ch).simplex_driven(
                 x, simplex_step_, env_alpha, mod_, octaves);
+        }
+        case NoiseType::FrictionScrape: {
+            // Stick-slip bow model: smooth proportional force while sticking,
+            // saturated + noisy force while slipping. Threshold scales with DENSITY
+            // (which also sets modal inharmonicity B): low DENSITY = slips easily,
+            // high DENSITY = stiffer bow, harder to slip.
+            c.friction_vel_ = c.friction_vel_ * 0.997f + std::abs(x) * 0.003f;
+            const float vel   = c.friction_vel_;
+            const float thresh = 0.02f + density_ * 0.08f;
+            const float excite = (vel < thresh)
+                ? (vel / thresh)
+                : (std::tanh((vel - thresh) / thresh * 8.0f) + c.randbi() * 0.25f);
+            float out = 0.0f;
+            for (int k = 0; k < modal_n_active_; ++k) {
+                const float y = modal_b0_[k] * excite
+                              - modal_a1_[k] * c.modal_y1_[k]
+                              - modal_a2_[k] * c.modal_y2_[k];
+                c.modal_y2_[k] = c.modal_y1_[k];
+                c.modal_y1_[k] = y;
+                out += y / float(k + 1);
+            }
+            return std::tanh(out * 4.0f);
+        }
+        case NoiseType::GendynDriven: {
+            // Input level adds to mutation rate: quiet = near-frozen waveform,
+            // loud playing = rapid stochastic mutation toward noise.
+            const float driven_mod = std::clamp(mod_ + std::abs(x) * 2.0f, 0.0f, 1.0f);
+            const int   n_breaks   = 2 + int(density_ * 14.0f);
+            const float base_dur   = grain_size_samples_ / float(n_breaks);
+            const float min_dur    = std::max(1.0f, base_dur * 0.1f);
+            return c.gendyn(driven_mod * 0.3f, driven_mod * base_dur * 0.3f,
+                            base_dur, min_dur, n_breaks);
+        }
+        case NoiseType::KarplusStrong: {
+            // SIZE 5ms→2000 Hz (metallic high bell), SIZE 500ms→50 Hz (deep plate).
+            const float freq = 2000.0f * std::pow(0.025f, (grain_size_ms_ - 5.0f) / 495.0f);
+            const int   D    = std::max(2, std::min(int(sample_rate_ / freq),
+                                                    NoiseChannel::kKsCap - 1));
+            const float lp    = 0.99f - density_ * 0.09f;  // 0.99=bright/long, 0.90=dark/short
+            const float stiff = mod_ * 0.97f;               // 0=harmonic, 0.97=inharmonic
+            return c.ks(x, D, lp, stiff);
         }
         default: return 0.0f;
     }
@@ -235,11 +294,14 @@ void NoiseProcessor::process(float* left, float* right, int num_samples)
             }
             nl = granular_sample(ch_l_);
             nr = granular_sample(ch_r_);
-        } else if (type_ == NoiseType::Residual      ||
-                   type_ == NoiseType::Coupled       ||
-                   type_ == NoiseType::Diffuse        ||
-                   type_ == NoiseType::Modal          ||
-                   type_ == NoiseType::SimplexDriven) {
+        } else if (type_ == NoiseType::Residual       ||
+                   type_ == NoiseType::Coupled        ||
+                   type_ == NoiseType::Diffuse         ||
+                   type_ == NoiseType::Modal           ||
+                   type_ == NoiseType::SimplexDriven   ||
+                   type_ == NoiseType::FrictionScrape  ||
+                   type_ == NoiseType::GendynDriven    ||
+                   type_ == NoiseType::KarplusStrong) {
             nl = derived_noise_sample(ch_l_, left [i]);
             nr = derived_noise_sample(ch_r_, right[i]);
         } else {
@@ -266,6 +328,18 @@ void NoiseProcessor::process(float* left, float* right, int num_samples)
                 out_l = (1.0f - mix_) * left [i] + mix_ * left [i] * noise_l;
                 out_r = (1.0f - mix_) * right[i] + mix_ * right[i] * noise_r;
                 break;
+            case NoiseBlend::SampleRate: {
+                const float factor = 1.0f + mod_ * 31.0f;  // 1-32x decimation
+                sr_phase_ += 1.0f;
+                if (sr_phase_ >= factor) {
+                    sr_phase_ -= factor;
+                    sr_hold_l_ = left [i];
+                    sr_hold_r_ = right[i];
+                }
+                out_l = (1.0f - mix_) * left [i] + mix_ * sr_hold_l_;
+                out_r = (1.0f - mix_) * right[i] + mix_ * sr_hold_r_;
+                break;
+            }
             case NoiseBlend::Roughness: {
                 const float fc        = 20.0f + mod_ * 180.0f;  // 20-200 Hz carrier
                 const float phase_inc = fc / float(sample_rate_);
@@ -309,11 +383,14 @@ float NoiseProcessor::next_preview_sample()
         return granular_sample(ch_prev_) * gain_;
     }
     // Input-derived types have no signal in preview context.
-    if (type_ == NoiseType::Residual      ||
-        type_ == NoiseType::Coupled       ||
-        type_ == NoiseType::Diffuse        ||
-        type_ == NoiseType::Modal          ||
-        type_ == NoiseType::SimplexDriven)
+    if (type_ == NoiseType::Residual       ||
+        type_ == NoiseType::Coupled        ||
+        type_ == NoiseType::Diffuse         ||
+        type_ == NoiseType::Modal           ||
+        type_ == NoiseType::SimplexDriven   ||
+        type_ == NoiseType::FrictionScrape  ||
+        type_ == NoiseType::GendynDriven    ||
+        type_ == NoiseType::KarplusStrong)
         return 0.0f;
     return noise_sample(ch_prev_) * gain_;
 }

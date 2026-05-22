@@ -436,65 +436,106 @@ the gate opens.
 
 ### kaos-engine::noise
 
-A stereo noise generator that adds, blends, or spectrally injects noise into an input
-signal. Seven noise types span independent broadband sources (White, Pink, Brown,
-Granular) and three input-derived sources that generate noise from the signal itself
-(Residual, Coupled, Diffuse). Four blend modes control how the noise combines with the
-audio. Three gate modes control when and how hard the noise is applied. The MIX knob is
-a true dry/wet crossfade: fully left passes the input unmodified; fully right outputs
-only the processed signal with no dry component.
+A stereo noise generator / processor covering 23 noise sources and 10 blend modes.
+Noise types are split into two groups separated by a divider in the combo box:
+**always-on** sources generate independently of the input signal (useful as broadband
+texturers, drones, and soundscape layers), and **input-reactive** sources derive their
+character directly from whatever audio is passing through (the input signal gates, seeds,
+or physically excites the noise). Three gate modes control when noise is applied; the
+MIX knob is a true dry/wet crossfade.
 
 ![kaos-engine::noise](doc/images/noise.png)
 
-**Noise types**
+**Always-on noise types**
+
+These types produce output regardless of input signal level. Set Mode to **Always On**
+to hear them continuously, or use **Follow** / **Gated** to modulate their level with
+the input dynamics.
+
+*Coloured noise*
 
 | Type | Character | Active controls |
 |---|---|---|
-| **White** | Flat spectrum -- equal energy at all frequencies. Broadband hiss | GAIN |
-| **Pink** | -3 dB/oct (1/f). More low-frequency energy. Warmer, natural sounding noise | GAIN |
-| **Brown** | -6 dB/oct (1/f^2). Deep rumble and low roar. Brownian random walk | GAIN |
-| **Granular** | Hann-windowed noise bursts from a 16-voice grain pool. Texture ranges from sparse pops to a dense overlapping cloud | GAIN, SIZE, DENSITY |
-| **Residual** | High-pass residual of the input signal: `n = x - LP(x)`. The noise is always correlated with what is playing -- it accentuates transients and adds grain to the attack portion of notes. SIZE sets the LP cutoff (smaller SIZE = higher cutoff = more texture) | GAIN, SIZE |
-| **Coupled** | Logistic chaos driven by the input level. The map `x -> r*x*(1-x)` produces deterministic chaos at high DENSITY and period-2 oscillation at low DENSITY. The noise amplitude depends on how hard the signal is driving the map | GAIN, DENSITY |
-| **Diffuse** | Schroeder allpass cascade applied to the input. Every frequency is present (the spectrum is unchanged) but the signal is smeared in time, creating a diffuse halo around each transient. DENSITY sets the allpass coefficient (0 = transparent, 1 = maximum diffusion) | GAIN, DENSITY |
+| **White** | Flat spectrum. Equal energy at all frequencies. Broadband hiss | GAIN |
+| **Pink** | -3 dB/oct (1/f). More low-frequency energy. Warmer, more natural sounding than white | GAIN |
+| **Blue** | +3 dB/oct. Differentiated white noise. High-frequency emphasis; air, presence, sibilance | GAIN |
+| **Brown** | -6 dB/oct (1/f^2). Deep rumble and low roar. Brownian random walk in amplitude | GAIN |
+
+*Structured noise*
+
+| Type | Character | Active controls |
+|---|---|---|
+| **Granular** | Hann-windowed noise bursts from a 16-voice grain pool. Texture ranges from sparse clicks to a dense overlapping cloud. SIZE = grain length, DENSITY = spawn rate | GAIN, SIZE, DENSITY |
+| **Feedback Comb** | White noise through a resonant comb filter. Pitched droning texture at long delay times; metallic ringing at short. SIZE = delay (pitch), DENSITY = feedback gain (resonance) | GAIN, SIZE, DENSITY |
+| **Simplex** | Smooth fBm coherent noise. Evolves continuously without random jumps. SIZE = evolution speed, DENSITY = octave count, MOD = persistence (spectral slope) | GAIN, SIZE, DENSITY, MOD |
+| **Lorenz** | Lorenz attractor integrated via RK4. Butterfly chaos -- never repeats but has a characteristic spectrum. SIZE = integration step (pitch/speed), DENSITY = rho (low = ordered spirals, high = full chaos) | GAIN, SIZE, DENSITY |
+| **Duffing** | Forced double-well oscillator (RK4). Intermittent chaos -- alternates between near-periodic and chaotic bursts as DENSITY changes. SIZE = integration step, DENSITY = forcing amplitude, MOD = forcing frequency | GAIN, SIZE, DENSITY, MOD |
+| **Gendyn** | Xenakis stochastic waveform synthesis. N breakpoints connected by linear interpolation; each breakpoint undergoes an independent random walk every cycle. Low MOD = frozen quasi-periodic tone; high MOD = rapidly evolving noise. SIZE = period/pitch, DENSITY = breakpoint count, MOD = mutation rate | GAIN, SIZE, DENSITY, MOD |
+| **Harsh Wall** | Four parallel linear comb filters with prime-ratio incommensurate delays (7:11:17:23), summed and passed through a MOD-controlled output saturation. At low DENSITY the spectral peaks are audible as distinct tonal components; at high DENSITY they merge into a dense monolithic wall. SIZE = spectral pitch centre (high frequency to low), DENSITY = comb feedback, MOD = output saturation drive | GAIN, SIZE, DENSITY, MOD |
+| **Chua's Circuit** | Chua's double-scroll chaotic attractor (RK4). Piecewise-linear 3D chaos with intermittent pitch-switching between two lobes -- a distinctly different chaos character from Lorenz or Duffing. SIZE = integration step, DENSITY = alpha parameter (9--12; all values are in the chaotic regime) | GAIN, SIZE, DENSITY |
+| **Velvet** | Sparse sequence of +1/0/-1 impulses with one impulse per window of M samples. No multiplications in the generator loop. At low DENSITY the impulses are audible as discrete clicks with a reverberant tail; at high DENSITY it approaches a bright shimmer. DENSITY = pulse rate (200--6000 Hz) | GAIN, DENSITY |
+| **Missing Fund** | Sinusoids at 2f, 3f, 4f, and 5f with the fundamental f absent. The auditory system infers the missing bass note, implying sub-bass on small speakers or headphones. SIZE = fundamental f0 (15--80 Hz), DENSITY = harmonic rolloff (sparse to rich), MOD = phase noise (0 = pure sinusoids, 1 = slowly drifting texture) | GAIN, SIZE, DENSITY, MOD |
+| **Domain Warp** | Two-layer domain-warped fBm. The first fBm pass generates a displacement field; the second pass evaluates at the displaced coordinates. Creates swirling turbulent texture distinct from regular Simplex. SIZE = evolution speed, DENSITY = octaves, MOD = warp depth (0 = regular fBm, 1 = heavily turbulent) | GAIN, SIZE, DENSITY, MOD |
+
+**Input-reactive noise types**
+
+These types derive their output directly from the input signal. They require audio to
+be passing through the plugin -- they produce no output in silence regardless of the
+Mode setting.
+
+| Type | Character | Active controls |
+|---|---|---|
+| **Residual** | High-pass residual of the input: `n = x - LP(x)`. The noise is always correlated with what is playing -- it accentuates transients and adds grain to the attack of notes. SIZE = LP cutoff (smaller = higher cutoff = brighter residual) | GAIN, SIZE |
+| **Coupled** | Logistic chaos driven by the input level. Loud playing pushes the map into full chaos; quiet playing settles it into period-2 oscillation. DENSITY = base chaos coupling | GAIN, DENSITY |
+| **Diffuse** | Three-stage Schroeder allpass cascade applied to the input. The spectrum is unchanged but the signal is smeared in time, creating a diffuse halo around each transient. DENSITY = allpass coefficient | GAIN, DENSITY |
+| **Modal** | Inharmonic modal resonator bank (8 modes) excited directly by the input signal. Models the vibrational modes of a metal bar or plate. SIZE = fundamental frequency (100--2000 Hz), DENSITY = inharmonicity coefficient B, MOD = T60 decay time | GAIN, SIZE, DENSITY, MOD |
+| **Simplex 2D** | 2D simplex noise field where the input's RMS level navigates the y-axis. Different playing dynamics map to different texture regions of the same noise field. SIZE = evolution speed, DENSITY = octaves, MOD = y-axis depth (how strongly input level moves through the field) | GAIN, SIZE, DENSITY, MOD |
+| **Friction Scrape** | Stick-slip bow friction model driving the same inharmonic modal resonator bank as Modal. Below the slip threshold the model is in the stick regime: smooth, proportional force. Above threshold it enters the slip regime: saturated Coulomb friction plus broadband scraping noise. The cycling between stick and slip produces creaking, scraping, and metallic industrial textures that respond to playing dynamics. SIZE = modal fundamental (100--2000 Hz), DENSITY = inharmonicity and slip threshold (low = slips easily = rougher; high = stiff bow = smoother ring), MOD = T60 decay | GAIN, SIZE, DENSITY, MOD |
+| **Gendyn Driven** | Gendyn stochastic waveform synthesis where the input amplitude modulates the mutation rate. Quiet playing freezes the waveform into a near-periodic tone; loud transients accelerate the stochastic mutation toward noise. SIZE = period/pitch, DENSITY = breakpoint count (2--16), MOD = base mutation rate | GAIN, SIZE, DENSITY, MOD |
+| **Karplus-Strong** | Inharmonic waveguide physical model. The input continuously excites a delay line with a lowpass damping filter and a stiffness allpass in the feedback loop. Produces bell and plate resonances that respond to note attacks and sustain. MOD = 0 gives harmonic string character; high MOD introduces progressive dispersion that stretches upper harmonics upward, giving a metallic bell or inharmonic plate quality. SIZE = pitch (5 ms = 2000 Hz high metallic bell; 500 ms = 50 Hz deep plate resonance), DENSITY = lowpass damping (0 = bright and sustained, 1 = dark and percussive), MOD = stiffness dispersion | GAIN, SIZE, DENSITY, MOD |
 
 **Gate modes**
 
 | Mode | Behaviour |
 |---|---|
-| **Follow** | Noise amplitude tracks the input envelope proportionally. Louder input = louder noise. Below THRESHOLD the noise fades to zero via the RELEASE tail. Default mode |
+| **Follow** | Noise amplitude tracks the input envelope proportionally. Louder input = louder noise. Below THRESHOLD the noise fades to zero via the RELEASE tail |
 | **Gated** | Binary gate -- noise snaps fully on when the input crosses THRESHOLD and fades fully off when it drops below. ATTACK and RELEASE smooth the transitions |
-| **Always On** | Noise runs continuously at fixed amplitude regardless of input. THRESHOLD, ATTACK, and RELEASE are inactive |
+| **Always On** | Noise runs continuously at fixed amplitude. THRESHOLD, ATTACK, and RELEASE are inactive. Required for always-on types with no input signal |
 
 **Blend modes**
 
-The blend mode controls how the noise signal `n` combines with the dry input `x`.
+Controls how the processed noise signal combines with the dry input.
 
-| Blend | Signal flow | Character |
+| Blend | Signal flow | Notes |
 |---|---|---|
-| **Add** | `out = (1 - mix)*x + mix*n` | Standard dry/wet crossfade. At MIX = 0 you hear only the input; at MIX = 1 only the noise | 
-| **AM** | `out = x * (1 + mix*n)` | Noise amplitude-modulates the signal. The input is always present but its amplitude fluctuates at the rate of the noise source. Subtle at low GAIN; the signal becomes grainy and irregular at high GAIN |
-| **Saturate** | `out = lerp(x, tanh(x + mod*n), mix)` | Noise is injected before a soft clipper. MOD controls the injection depth. Low MOD adds warmth and subtle harmonic shimmer; high MOD drives the signal into distortion whose character changes with the noise |
-| **Spectral** | Per-bin magnitude scaling: `|X_k|' = |X_k| * (1 + mod*n_k)` | OLA FFT processing (1024-pt, 50% overlap, ~11 ms latency). Each frequency bin is independently scaled by a different noise sample. MOD controls how far each bin can deviate from its original amplitude. Adds a continuously shifting spectral texture without changing the overall timbre at low MOD |
+| **Add** | `out = (1 - mix)*x + mix*n` | Standard crossfade. MIX = 0 passes input only; MIX = 1 passes noise only |
+| **AM** | `out = x * (1 + mix*n)` | Noise amplitude-modulates the signal. Input is always present; its amplitude fluctuates at the noise rate |
+| **Saturate** | `out = lerp(x, tanh(x + mod*n), mix)` | Noise injected before a soft clipper. MOD = injection depth. Low MOD = warmth; high MOD = noise-modulated distortion |
+| **Spectral** | `|X_k|' = |X_k| * (1 + mod*n_k)` | OLA (1024-pt, ~11 ms). Each bin scaled independently by a different noise sample. MOD = deviation depth |
+| **Phase Random** | OLA: preserve magnitudes, rotate bin phases by `mod * pi` | Smears transients and temporal coherence without affecting the spectral envelope. MOD = rotation depth |
+| **Ring Mod** | `out = (1 - mix)*x + mix*(x*n)` | Suppressed-carrier AM. At MIX = 1 only sidebands remain; the original signal is absent |
+| **Infrasonic AM** | `out = x * (1 + mix * sin(2*pi*f*t))` | Sub-20 Hz LFO amplitude-modulates the signal. MOD = LFO frequency (0.1--19 Hz). Creates psychoacoustic unease and low-frequency physical pulsing |
+| **Roughness** | `out = (1 - mix)*x + mix*(x * sin(2*pi*fc*t))` | Ring modulation at a sub-200 Hz carrier. MOD = carrier frequency (20--200 Hz). Adds sidebands within the Plomp-Levelt critical bandwidth of each harmonic, directly targeting perceived roughness and dissonance |
+| **Sample Rate** | ZOH decimation: hold each input sample for N samples | MOD = decimation factor (1--32x). At 32x the effective sample rate drops to ~1.4 kHz, creating heavy aliasing artifacts. MIX blends dry and decimated signals |
+| **Spectral Envelope** | OLA: replace bin magnitudes with a target noise-colored profile, preserve input phases | Substitutes the input's spectral shape with a noise color while keeping its temporal/transient structure in the phases. MOD = spectral slope (0 = flat/white, 1 = brown/steep). MIX = blend depth. ~11 ms latency |
 
 **Parameters**
 
 | Knob | Range | Description |
 |---|---|---|
-| Gain | 0--1 | Noise amplitude before the blend stage. Scales all noise types equally |
-| Mod | 0--1 | Injection depth for Saturate and Spectral modes. Inactive (greyed out) in Add and AM modes |
-| Size | 5--500 ms | Granular: grain length. Residual: LP smoothing window (smaller = brighter residual). Inactive for White, Pink, Brown, Coupled, Diffuse |
-| Density | 0--1 | Granular: grain spawn rate. Coupled: chaos coupling level. Diffuse: allpass coefficient. Inactive for White, Pink, Brown, Residual |
-| Threshold | -60 to 0 dBFS | Follow / Gated -- input level at which noise activates. Inactive in Always On mode |
-| Attack | 0.1--500 ms | Follow / Gated -- time for noise to fade in after signal crosses threshold. Inactive in Always On mode |
-| Release | 1--5000 ms | Follow / Gated -- time for noise to decay after signal drops below threshold. Inactive in Always On mode |
-| Mix | 0--1 | Dry/wet crossfade. 0 = input signal only; 1 = processed signal only |
-| Output | -20 to +6 dB | Final output trim applied after the mix |
+| Gain | 0--1 | Noise amplitude before the blend stage |
+| Mod | 0--1 | Type-specific modifier (chaos parameter, phase noise, mutation rate, stiffness, etc.) or injection depth for Saturate / Spectral blend modes. Greyed out when inactive |
+| Size | 5--500 ms | Type-specific size/speed/pitch parameter. Meaning varies by type; see tables above. Greyed out when inactive |
+| Density | 0--1 | Type-specific density/chaos/feedback parameter. Greyed out when inactive |
+| Threshold | -60 to 0 dBFS | Follow / Gated: input level at which noise activates. Inactive in Always On mode |
+| Attack | 0.1--500 ms | Follow / Gated: time for noise to fade in. Inactive in Always On mode |
+| Release | 1--5000 ms | Follow / Gated: time for noise to decay. Inactive in Always On mode |
+| Mix | 0--1 | Dry/wet crossfade. 0 = input only; 1 = processed signal only |
+| Output | -20 to +6 dB | Final output trim |
 
 **Display:** Dual-line scrolling strip chart at 30 Hz. The faint red line is the raw
-input (dry). The bright red line with fill is the processed output (wet). Comparing the
-two lines shows how much the noise is altering the signal -- particularly useful with AM
-and Spectral modes where the change can be subtle.
+input (dry). The bright red line with fill is the processed output (wet). Input-reactive
+types with no input signal show a flat line -- this is expected behaviour.
 
 ---
 
@@ -806,7 +847,7 @@ kaos-engine/
 │   │   ├── eq/              # 5-band parametric EQ DSP (RBJ biquads)
 │   │   ├── compressor/      # dynamics compressor DSP (VCA / Optical / FET)
 │   │   ├── gate/            # noise gate / expander / ducker DSP
-│   │   ├── noise/           # noise generator DSP (7 types, 4 blend modes)
+│   │   ├── noise/           # noise generator DSP (23 types, 10 blend modes)
 │   │   ├── looper/          # loop recorder DSP (5 playback modes, FEEDBACK decay)
 │   │   └── spectrogram/     # passthrough analyzer (FFT + scrolling display)
 │   ├── framework/

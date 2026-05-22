@@ -49,6 +49,11 @@ private:
     NoiseProcessor dsp_;
     juce::AudioProcessorValueTreeState apvts_;
 
+    // Typed pointers for AudioParameterChoice params -- raw float stores normalised 0-1,
+    // so roundToInt(raw) gives wrong index for all choices except 0. Use getIndex() instead.
+    juce::AudioParameterChoice* p_type_choice_  = nullptr;
+    juce::AudioParameterChoice* p_mode_choice_  = nullptr;
+    juce::AudioParameterChoice* p_blend_choice_ = nullptr;
     std::atomic<float>* p_type_       = nullptr;
     std::atomic<float>* p_mode_       = nullptr;
     std::atomic<float>* p_blend_      = nullptr;

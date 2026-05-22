@@ -34,7 +34,9 @@ NoisePlugin::make_params()
         StringArray{"White", "Pink", "Blue", "Brown",
                     "Granular", "FeedbackComb", "Simplex",
                     "Lorenz", "Duffing", "Gendyn", "HarshWall", "Chua",
-                    "Residual", "Coupled", "Diffuse", "Modal", "SimplexDriven"}, 0));
+                    "Residual", "Coupled", "Diffuse", "Modal", "SimplexDriven",
+                    "Velvet", "MissingFund", "DomainWarp",
+                    "FrictionScrape", "GendynDriven", "KarplusStrong"}, 0));
 
     p.push_back(std::make_unique<AudioParameterChoice>(
         ParameterID{kMode, 1}, "Mode",
@@ -42,7 +44,7 @@ NoisePlugin::make_params()
 
     p.push_back(std::make_unique<AudioParameterChoice>(
         ParameterID{kBlend, 1}, "Blend",
-        StringArray{"Add", "AM", "Saturate", "Spectral", "Phase Random", "Ring Mod", "Infrasonic AM", "Roughness"}, 0));
+        StringArray{"Add", "AM", "Saturate", "Spectral", "Phase Random", "Ring Mod", "Infrasonic AM", "Roughness", "SampleRate", "SpectralEnv"}, 0));
 
     {
         NormalisableRange<float> r(0.0f, 1.0f, 0.001f);
@@ -113,6 +115,9 @@ NoisePlugin::NoisePlugin()
           .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       apvts_(*this, nullptr, "KE_NOISE", make_params())
 {
+    p_type_choice_  = static_cast<juce::AudioParameterChoice*>(apvts_.getParameter(kType));
+    p_mode_choice_  = static_cast<juce::AudioParameterChoice*>(apvts_.getParameter(kMode));
+    p_blend_choice_ = static_cast<juce::AudioParameterChoice*>(apvts_.getParameter(kBlend));
     p_type_       = apvts_.getRawParameterValue(kType);
     p_mode_       = apvts_.getRawParameterValue(kMode);
     p_blend_      = apvts_.getRawParameterValue(kBlend);
@@ -165,9 +170,11 @@ void NoisePlugin::processBlock(juce::AudioBuffer<float>& buf,
 {
     juce::ScopedNoDenormals ndn;
 
-    dsp_.set_type       (static_cast<NoiseType> (juce::roundToInt(p_type_ ->load())));
-    dsp_.set_mode       (static_cast<NoiseMode> (juce::roundToInt(p_mode_ ->load())));
-    dsp_.set_blend      (static_cast<NoiseBlend>(juce::roundToInt(p_blend_->load())));
+    dsp_.set_type       (static_cast<NoiseType> (p_type_choice_ ? p_type_choice_->getIndex() : 0));
+    const NoiseMode  mode_idx  = static_cast<NoiseMode> (p_mode_choice_  ? p_mode_choice_ ->getIndex() : 0);
+    const NoiseBlend blend_idx = static_cast<NoiseBlend>(p_blend_choice_ ? p_blend_choice_->getIndex() : 0);
+    dsp_.set_mode  (mode_idx);
+    dsp_.set_blend (blend_idx);
     dsp_.set_mod        (p_mod_->load());
     dsp_.set_gain       (p_gain_      ->load());
     dsp_.set_grain_size_ms(p_grain_size_->load());
@@ -178,7 +185,7 @@ void NoisePlugin::processBlock(juce::AudioBuffer<float>& buf,
     dsp_.set_mix        (p_mix_       ->load());
     dsp_.set_output     (p_output_    ->load());
 
-    const NoiseBlend blend = static_cast<NoiseBlend>(juce::roundToInt(p_blend_->load()));
+    const NoiseBlend blend = blend_idx;
 
     float* left  = buf.getWritePointer(0);
     float* right = buf.getWritePointer(1);
@@ -190,7 +197,8 @@ void NoisePlugin::processBlock(juce::AudioBuffer<float>& buf,
                           std::memory_order_relaxed);
     }
 
-    if (blend == NoiseBlend::Spectral || blend == NoiseBlend::PhaseRandom) {
+    if (blend == NoiseBlend::Spectral || blend == NoiseBlend::PhaseRandom ||
+        blend == NoiseBlend::SpectralEnv) {
         const float mod          = p_mod_      ->load();
         const float mix          = p_mix_      ->load();
         const float output_lin   = std::pow(10.0f, p_output_->load() * 0.05f);
@@ -200,7 +208,7 @@ void NoisePlugin::processBlock(juce::AudioBuffer<float>& buf,
         const float rel_ms       = p_release_->load();
         const float alpha_a      = 1.0f - std::exp(-1.0f / (atk_ms * 0.001f * sr));
         const float alpha_r      = 1.0f - std::exp(-1.0f / (rel_ms * 0.001f * sr));
-        const NoiseMode mode     = static_cast<NoiseMode>(juce::roundToInt(p_mode_->load()));
+        const NoiseMode mode     = mode_idx;
 
         for (int i = 0; i < ns; ++i) {
             left [i] = process_ola_sample(ola_l_, spect_noise_l_, left [i],
@@ -282,7 +290,24 @@ void NoisePlugin::process_ola_frame(OlaChannel& ch, NoiseChannel& noise_ch,
 
     spect_fft_.performRealOnlyForwardTransform(ch.fft_buf_, false);
 
-    if (blend == NoiseBlend::PhaseRandom) {
+    if (blend == NoiseBlend::SpectralEnv) {
+        // Replace bin magnitudes with target noise-colored spectrum; preserve input phases.
+        // mod=0: flat (white-like). mod=1: -6dB/oct (brown-like).
+        // The temporal structure of the input (encoded in phases) drives the texture,
+        // but the spectral shape is replaced with the target noise color.
+        ch.fft_buf_[0] = 0.0f;  // zero DC and Nyquist to avoid tonal artefacts
+        ch.fft_buf_[1] = 0.0f;
+        for (int k = 1; k < kSpectSize / 2; ++k) {
+            const float re  = ch.fft_buf_[2*k];
+            const float im  = ch.fft_buf_[2*k+1];
+            const float mag = std::sqrt(re*re + im*im);
+            if (mag < 1e-10f) continue;
+            const float target = 0.08f * std::pow(float(k + 1), -mod);
+            const float scale  = target / mag;
+            ch.fft_buf_[2*k]   *= scale;
+            ch.fft_buf_[2*k+1] *= scale;
+        }
+    } else if (blend == NoiseBlend::PhaseRandom) {
         // Rotate each bin's phase by a random amount scaled by mod.
         // Magnitudes are preserved; only temporal coherence is destroyed.
         // DC and Nyquist are real-only — randomly flip sign at full mod.
