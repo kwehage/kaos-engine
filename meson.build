@@ -50,7 +50,9 @@ elif os_windows
 elif os_darwin
     # JUCE unity-build .cpp files include Cocoa headers which use @class / @protocol.
     # Compiling them as plain C++ fails; ObjC++ mode is required on macOS.
-    build_flags += ['-DMAC=1', '-x', 'objective-c++']
+    # Deployment target 13.0: CGWindowListCreateImage is neither deprecated nor
+    # obsoleted at this target (it was removed in macOS 15 SDK at target >= 15.0).
+    build_flags += ['-DMAC=1', '-x', 'objective-c++', '-mmacosx-version-min=13.0']
 endif
 
 if not os_darwin
@@ -109,6 +111,7 @@ if os_linux
         cc.find_library('rt'),
         dependency('freetype2'),
         dependency('gtk+-3.0'),
+        dependency('webkit2gtk-4.1'),
         dependency('x11').partial_dependency(link_args: false, links: false),
         dependency('xext').partial_dependency(link_args: false, links: false),
         dependency('gl'),
@@ -137,12 +140,15 @@ elif os_darwin
             'AudioUnit',
             'Cocoa',
             'CoreAudio',
+            'CoreAudioKit',
             'CoreFoundation',
+            'CoreImage',
             'CoreMIDI',
             'CoreServices',
             'CoreText',
             'IOKit',
             'Metal',
+            'MetalKit',
             'QuartzCore',
             'WebKit',
         ]),
