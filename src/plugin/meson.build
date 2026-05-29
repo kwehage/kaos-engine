@@ -86,8 +86,8 @@ custom_target('kaos-engine-distortion-vst3-bundle',
     input: vst3_lib,
     command: [
         'bash', '-c',
-        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-distortion.vst3"'.format(
-            vst3_bundle_contents),
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-distortion@1@"'.format(
+            vst3_bundle_contents, vst3_inner_lib_ext),
     ],
     build_by_default: true,
 )
@@ -151,8 +151,8 @@ custom_target('kaos-engine-delay-vst3-bundle',
     input: delay_vst3_lib,
     command: [
         'bash', '-c',
-        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-delay.vst3"'.format(
-            delay_vst3_bundle_contents),
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-delay@1@"'.format(
+            delay_vst3_bundle_contents, vst3_inner_lib_ext),
     ],
     build_by_default: true,
 )
@@ -216,8 +216,8 @@ custom_target('kaos-engine-reverb-vst3-bundle',
     input: reverb_vst3_lib,
     command: [
         'bash', '-c',
-        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-reverb.vst3"'.format(
-            reverb_vst3_bundle_contents),
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-reverb@1@"'.format(
+            reverb_vst3_bundle_contents, vst3_inner_lib_ext),
     ],
     build_by_default: true,
 )
@@ -281,8 +281,8 @@ custom_target('kaos-engine-pitch-shifter-vst3-bundle',
     input: pitch_shifter_vst3_lib,
     command: [
         'bash', '-c',
-        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-pitch-shifter.vst3"'.format(
-            pitch_shifter_vst3_bundle_contents),
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-pitch-shifter@1@"'.format(
+            pitch_shifter_vst3_bundle_contents, vst3_inner_lib_ext),
     ],
     build_by_default: true,
 )
@@ -346,8 +346,8 @@ custom_target('kaos-engine-modulator-vst3-bundle',
     input: modulator_vst3_lib,
     command: [
         'bash', '-c',
-        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-modulator.vst3"'.format(
-            modulator_vst3_bundle_contents),
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-modulator@1@"'.format(
+            modulator_vst3_bundle_contents, vst3_inner_lib_ext),
     ],
     build_by_default: true,
 )
@@ -411,8 +411,8 @@ custom_target('kaos-engine-frequency-shifter-vst3-bundle',
     input: freq_shifter_vst3_lib,
     command: [
         'bash', '-c',
-        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-frequency-shifter.vst3"'.format(
-            freq_shifter_vst3_bundle_contents),
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-frequency-shifter@1@"'.format(
+            freq_shifter_vst3_bundle_contents, vst3_inner_lib_ext),
     ],
     build_by_default: true,
 )
@@ -476,8 +476,8 @@ custom_target('kaos-engine-eq-vst3-bundle',
     input: eq_vst3_lib,
     command: [
         'bash', '-c',
-        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-eq.vst3"'.format(
-            eq_vst3_bundle_contents),
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-eq@1@"'.format(
+            eq_vst3_bundle_contents, vst3_inner_lib_ext),
     ],
     build_by_default: true,
 )
@@ -541,8 +541,8 @@ custom_target('kaos-engine-compressor-vst3-bundle',
     input: comp_vst3_lib,
     command: [
         'bash', '-c',
-        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-compressor.vst3"'.format(
-            comp_vst3_bundle_contents),
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-compressor@1@"'.format(
+            comp_vst3_bundle_contents, vst3_inner_lib_ext),
     ],
     build_by_default: true,
 )
@@ -606,8 +606,8 @@ custom_target('kaos-engine-gate-vst3-bundle',
     input: gate_vst3_lib,
     command: [
         'bash', '-c',
-        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-gate.vst3"'.format(
-            gate_vst3_bundle_contents),
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-gate@1@"'.format(
+            gate_vst3_bundle_contents, vst3_inner_lib_ext),
     ],
     build_by_default: true,
 )
@@ -671,8 +671,8 @@ custom_target('kaos-engine-envelope-follower-vst3-bundle',
     input: env_vst3_lib,
     command: [
         'bash', '-c',
-        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-envelope-follower.vst3"'.format(
-            env_vst3_bundle_contents),
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-envelope-follower@1@"'.format(
+            env_vst3_bundle_contents, vst3_inner_lib_ext),
     ],
     build_by_default: true,
 )
@@ -736,8 +736,8 @@ custom_target('kaos-engine-stochastic-vst3-bundle',
     input: stoch_vst3_lib,
     command: [
         'bash', '-c',
-        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-stochastic.vst3"'.format(
-            stoch_vst3_bundle_contents),
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-stochastic@1@"'.format(
+            stoch_vst3_bundle_contents, vst3_inner_lib_ext),
     ],
     build_by_default: true,
 )
@@ -801,8 +801,8 @@ custom_target('kaos-engine-filter-vst3-bundle',
     input: filter_vst3_lib,
     command: [
         'bash', '-c',
-        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-filter.vst3"'.format(
-            filter_vst3_bundle_contents),
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-filter@1@"'.format(
+            filter_vst3_bundle_contents, vst3_inner_lib_ext),
     ],
     build_by_default: true,
 )
@@ -867,8 +867,8 @@ custom_target('kaos-engine-lfo-vst3-bundle',
     input: lfo_vst3_lib,
     command: [
         'bash', '-c',
-        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-lfo.vst3"'.format(
-            lfo_vst3_bundle_contents),
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-lfo@1@"'.format(
+            lfo_vst3_bundle_contents, vst3_inner_lib_ext),
     ],
     build_by_default: true,
 )
@@ -973,8 +973,8 @@ custom_target('kaos-engine-noise-vst3-bundle',
     input: noise_vst3_lib,
     command: [
         'bash', '-c',
-        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-noise.vst3"'.format(
-            noise_vst3_bundle_contents),
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-noise@1@"'.format(
+            noise_vst3_bundle_contents, vst3_inner_lib_ext),
     ],
     build_by_default: true,
 )
@@ -1038,8 +1038,8 @@ custom_target('kaos-engine-spectrogram-vst3-bundle',
     input: spectrogram_vst3_lib,
     command: [
         'bash', '-c',
-        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-spectrogram.vst3"'.format(
-            spectrogram_vst3_bundle_contents),
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-spectrogram@1@"'.format(
+            spectrogram_vst3_bundle_contents, vst3_inner_lib_ext),
     ],
     build_by_default: true,
 )
@@ -1103,8 +1103,8 @@ custom_target('kaos-engine-looper-vst3-bundle',
     input: looper_vst3_lib,
     command: [
         'bash', '-c',
-        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-looper.vst3"'.format(
-            looper_vst3_bundle_contents),
+        'mkdir -p "@0@" && cp "@INPUT@" "@0@/kaos-engine-looper@1@"'.format(
+            looper_vst3_bundle_contents, vst3_inner_lib_ext),
     ],
     build_by_default: true,
 )
