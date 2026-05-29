@@ -101,7 +101,7 @@ elif os_darwin
 else
     vst3_arch        = host_machine.cpu_family() + '-linux'
     lib_suffix       = '.so'
-    vst3_install_dir = get_option('prefix') / 'lib/vst3'
+    vst3_install_dir = '/usr/lib/vst3'
 endif
 
 # ── System dependencies ────────────────────────────────────────────────────────
